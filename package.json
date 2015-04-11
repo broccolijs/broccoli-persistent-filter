@@ -1,0 +1,27 @@
+{
+  "name": "broccoli-persistent-filter",
+  "version": "0.0.1",
+  "description": "broccoli filter but with a persistent cache",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stefanpenner/broccoli-persistent-filter.git"
+  },
+  "keywords": [
+    "broccoli",
+    "broccoli-plugin"
+  ],
+  "author": "Stefan Penner <stefan.penner@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/stefanpenner/broccoli-persistent-filter/issues"
+  },
+  "homepage": "https://github.com/stefanpenner/broccoli-persistent-filter#readme",
+  "dependencies": {
+    "async-disk-cache": "0.0.1",
+    "broccoli-filter": "^0.1.12"
+  }
+}
