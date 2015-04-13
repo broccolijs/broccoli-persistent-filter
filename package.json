@@ -22,6 +22,7 @@
   "homepage": "https://github.com/stefanpenner/broccoli-persistent-filter#readme",
   "dependencies": {
     "async-disk-cache": "0.0.1",
-    "broccoli-filter": "^0.1.12"
+    "broccoli-filter": "^0.1.12",
+    "hash-for-dep": "0.0.1"
   }
 }

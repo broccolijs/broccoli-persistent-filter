@@ -2,6 +2,7 @@ var Filter = require('broccoli-filter');
 var Cache = require('async-disk-cache');
 var crypto = require('crypto');
 var fs = require('fs');
+var hashForDep =  require('hash-for-dep');
 
 module.exports = PersistentFilter;
 
@@ -83,7 +84,7 @@ PersistentFilter.prototype = Object.create(Filter.prototype);
  */
 PersistentFilter.prototype.cacheKey = function() {
   // this will be have to be derived from the checksum of the dependencies
-  return 'persistent-filter-3';
+  return 'persistent-filter-3' + hashForDep('./');
 };
 
 
