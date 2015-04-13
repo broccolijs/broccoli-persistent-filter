@@ -2,7 +2,7 @@ var Filter = require('broccoli-filter');
 var Cache = require('async-disk-cache');
 var crypto = require('crypto');
 var fs = require('fs');
-var hashForDep =  require('hash-for-dep');
+var hashForDep = require('hash-for-dep');
 
 module.exports = PersistentFilter;
 
@@ -76,17 +76,24 @@ function PersistentFilter(inputTree, options) {
 PersistentFilter.prototype = Object.create(Filter.prototype);
 
 /*
- * @public
+ * @private
  * 
  *
  * @method cachKey
  * @return {String} this filters top-level cache key
  */
 PersistentFilter.prototype.cacheKey = function() {
-  // this will be have to be derived from the checksum of the dependencies
-  return 'persistent-filter-3' + hashForDep('./');
+  return hashForDep(this.baseDir());
 };
 
+/* @public
+ *
+ * @method baseDir
+ * @returns {String} absolute path to the root of the filter...
+ */
+PersistentFilter.prototype.baseDir = function() {
+  throw Error('Filter must implement prototype.baseDir');
+};
 
 /*
  * @public

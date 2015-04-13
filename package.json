@@ -1,6 +1,6 @@
 {
   "name": "broccoli-persistent-filter",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "broccoli filter but with a persistent cache",
   "main": "index.js",
   "scripts": {
@@ -23,6 +23,6 @@
   "dependencies": {
     "async-disk-cache": "0.0.1",
     "broccoli-filter": "^0.1.12",
-    "hash-for-dep": "0.0.1"
+    "hash-for-dep": "0.0.3"
   }
 }
