@@ -23,7 +23,7 @@ module.exports = PersistentFilter;
  * What does this do?
  *
  * * This does not aim to improve incremental build performance, if it does, it
- *   should indicate something is wrong with the filter ir input filter in
+ *   should indicate something is wrong with the filter or input filter in
  *   question.
  *
  * * This does not improve cold boot times.
@@ -59,7 +59,7 @@ module.exports = PersistentFilter;
  *
  * ```js
  * Subbclass.prototype.cacheKeyProcessString = function(string, relativePath) {
- *   return superAwsomeDigest(string);
+ *   return superAwesomeDigest(string);
  * }
  * ```
  *
