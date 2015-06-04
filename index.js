@@ -70,7 +70,9 @@ module.exports = PersistentFilter;
  * */
 function PersistentFilter(inputTree, options) {
   Filter.call(this, inputTree, options);
-  this.cache = new Cache(this.cacheKey());
+  this.cache = new Cache(this.cacheKey(), {
+    compression: 'deflate'
+  });
 }
 
 PersistentFilter.prototype = Object.create(Filter.prototype);
