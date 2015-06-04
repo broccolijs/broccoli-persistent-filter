@@ -1,6 +1,6 @@
 var Filter = require('broccoli-filter');
 var Cache = require('async-disk-cache');
-var crypto = require('crypto');
+var md5Hex = require('md5-hex');
 var fs = require('fs');
 var hashForDep = require('hash-for-dep');
 
@@ -77,7 +77,7 @@ PersistentFilter.prototype = Object.create(Filter.prototype);
 
 /*
  * @private
- * 
+ *
  *
  * @method cachKey
  * @return {String} this filters top-level cache key
@@ -102,7 +102,7 @@ PersistentFilter.prototype.baseDir = function() {
  * @return {String} this filters top-level cache key
  */
 PersistentFilter.prototype.cacheKeyProcessString = function(string, relativePath) {
-  return crypto.createHash('md5').update(string).digest('hex');
+  return md5Hex(string);
 };
 
 

@@ -23,6 +23,7 @@
   "dependencies": {
     "async-disk-cache": "0.0.1",
     "broccoli-filter": "^0.1.12",
-    "hash-for-dep": "0.0.3"
+    "hash-for-dep": "0.0.3",
+    "md5-hex": "^1.0.2"
   }
 }
