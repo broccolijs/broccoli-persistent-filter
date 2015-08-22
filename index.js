@@ -1,91 +1,91 @@
-var Filter = require('broccoli-filter');
-var Cache = require('async-disk-cache');
-var md5Hex = require('md5-hex');
+'use strict';
+
 var fs = require('fs');
-var hashForDep = require('hash-for-dep');
+var path = require('path');
+var mkdirp = require('mkdirp');
+var Promise = require('rsvp').Promise;
+var Plugin = require('broccoli-plugin');
+var helpers = require('broccoli-kitchen-sink-helpers');
+var walkSync = require('walk-sync');
+var mapSeries = require('promise-map-series');
+var symlinkOrCopySync = require('symlink-or-copy').sync;
+var copyDereferenceSync = require('copy-dereference').sync;
+var Cache = require('./lib/cache');
+var debugGenerator = require('debug');
+var keyForFile = require('./lib/key-for-file');
+var PersistentCache = require('async-disk-cache');
+var md5Hex = require('md5-hex');
+var Processor = require('./lib/processor');
+var defaultProccessor = require('./lib/strategies/default');
 
-module.exports = PersistentFilter;
+module.exports = Filter;
 
-/*
- * @public
- *
- * `broccoli-persistent-filter` is broccoli-filter but it is able to persit
- * state across restarts. This exists to mitigate the upfront cost of some more
- * expensive transforms on warm boot.
- *
- * Why isn't this the default behaviour?
- *
- * Deriving the correct cache key for a
- * given filter can be tricky. In addition, this should be seen as a last
- * resort, if a given filter is too slow often times it should be improved
- * rather then opting for caching.
- *
- * What does this do?
- *
- * * This does not aim to improve incremental build performance, if it does, it
- *   should indicate something is wrong with the filter or input filter in
- *   question.
- *
- * * This does not improve cold boot times.
- *
- * How does it work?
- *
- * It does so but establishing a 2 layer file cache.
- * The first layer, is the entire bucket. The second, `cacheKeyProcessString`
- * is a per file cache key.
- *
- * Together, these two layers should provide the right balance of speed and
- * sensibility.
- *
- * The bucket level cacheKey must be stable but also never become stale. If the
- * key is not stable, state between restarts will be lost and performance will
- * suffer.  On the flip-side, if the cacheKey becomes stale changes may not be
- * correctly reflected.
- *
- * It is configured by subclassing and refining `cacheKey` method. A good key
- * here, is likely the name of the plugin, its version and the actual versions
- * of its dependencies
- *
- * ```js
- * Subclass.prototype.cacheKey = function() {
- *  return md5(Filter.prototype.call(this) + inputOptionsChecksum + dependencyVersionChecksum);
- * }
- * ```
- *
- * The second key, represents the contents of the file. Typically the
- * base-class's functionality is sufficient, as it merely generates a checksum
- * of the file contents. If for some reason this is not sufficient, it can be
- * re-configured via subclassing.
- *
- * ```js
- * Subbclass.prototype.cacheKeyProcessString = function(string, relativePath) {
- *   return superAwesomeDigest(string);
- * }
- * ```
- *
- * @class PersistentFilter
- * @param {Tree} inputTree
- * @param {Object} options
- *
- * */
-function PersistentFilter(inputTree, options) {
-  Filter.call(this, inputTree, options);
-  this.cache = new Cache(this.cacheKey(), {
-    compression: 'deflate'
-  });
+
+Filter.prototype = Object.create(Plugin.prototype);
+Filter.prototype.constructor = Filter;
+function Filter(inputTree, options) {
+  if (!this || !(this instanceof Filter) ||
+      Object.getPrototypeOf(this) === Filter.prototype) {
+    throw new TypeError('Filter is an abstract class and must be sub-classed');
+  }
+
+  var name = 'cauliflower-filter:' + (this.constructor.name);
+  if (this.description) {
+    name += ' > [' + this.description + ']';
+  }
+
+  this._debug = debugGenerator(name);
+
+  Plugin.call(this, [inputTree]);
+
+  this.processor = new Processor(options);
+  this.processor.setStrategy(defaultProccessor);
+
+  /* Destructuring assignment in node 0.12.2 would be really handy for this! */
+  if (options) {
+    if (options.extensions != null)
+      this.extensions = options.extensions;
+    if (options.targetExtension != null)
+      this.targetExtension = options.targetExtension;
+    if (options.inputEncoding != null)
+      this.inputEncoding = options.inputEncoding;
+    if (options.outputEncoding != null)
+      this.outputEncoding = options.outputEncoding;
+    if (options.persist) {
+      this.processor.setStrategy(require('./lib/strategies/persistent'));
+    }
+  }
+
+  this.processor.init(this);
+
+  this._cache = new Cache();
+  this._canProcessCache = Object.create(null);
+  this._destFilePathCache = Object.create(null);
 }
 
-PersistentFilter.prototype = Object.create(Filter.prototype);
+Filter.prototype.build = function build() {
+  var self = this;
+  var srcDir = this.inputPaths[0];
+  var destDir = this.outputPath;
+  var paths = walkSync(srcDir);
 
-/*
- * @private
- *
- *
- * @method cachKey
- * @return {String} this filters top-level cache key
- */
-PersistentFilter.prototype.cacheKey = function() {
-  return hashForDep(this.baseDir());
+  this._cache.deleteExcept(paths).forEach(function(key) {
+    fs.unlinkSync(this.cachePath + '/' + key);
+  }, this);
+
+  return mapSeries(paths, function rebuildEntry(relativePath) {
+    var destPath = destDir + '/' + relativePath;
+    if (relativePath.slice(-1) === '/') {
+      mkdirp.sync(destPath);
+    } else {
+      if (self.canProcessFile(relativePath)) {
+        return self.processAndCacheFile(srcDir, destDir, relativePath);
+      } else {
+        var srcPath = srcDir + '/' + relativePath;
+        symlinkOrCopySync(srcPath, destPath);
+      }
+    }
+  });
 };
 
 /* @public
@@ -93,44 +93,147 @@ PersistentFilter.prototype.cacheKey = function() {
  * @method baseDir
  * @returns {String} absolute path to the root of the filter...
  */
-PersistentFilter.prototype.baseDir = function() {
+Filter.prototype.baseDir = function() {
   throw Error('Filter must implement prototype.baseDir');
 };
 
-/*
+/**
  * @public
  *
- * @method cacheKeyProcessString
- * @return {String} this filters top-level cache key
+ * optionally override this to build a more rhobust cache key
+ * @param  {String} string The contents of a file that is being processed
+ * @return {String}        A cache key
  */
-PersistentFilter.prototype.cacheKeyProcessString = function(string, relativePath) {
+Filter.prototype.cacheKeyProcessString = function(string /*, relativePath*/) {
   return md5Hex(string);
 };
 
+Filter.prototype.canProcessFile =
+    function canProcessFile(relativePath) {
+  return !!this.getDestFilePath(relativePath);
+};
 
-/*
- * @private
- *
- * @method processFile
- * @param {String} srcDir
- * @param {String} destDir
- * @param {String} relativePath
- * @return {Promise}
- */
-PersistentFilter.prototype.processFile = function(srcDir, destDir, relativePath) {
-  var filter = this;
-  var inputEncoding = (this.inputEncoding === undefined) ? 'utf8' : this.inputEncoding;
-  var outputEncoding = (this.outputEncoding === undefined) ? 'utf8' : this.outputEncoding;
-  var string = fs.readFileSync(srcDir + '/' + relativePath, { encoding: inputEncoding });
-  var cache = this.cache;
-  var key = this.cacheKeyProcessString(string, relativePath);
+Filter.prototype.getDestFilePath = function getDestFilePath(relativePath) {
+  if (this.extensions == null) return relativePath;
 
-  return cache.get(key).then(function(entry) {
-     return entry.isCached ? entry.value : filter.processString(string, relativePath);
-  }).then(function(outputString) {
-    var outputPath = filter.getDestFilePath(relativePath);
-    fs.writeFileSync(destDir + '/' + outputPath, outputString, { encoding: outputEncoding });
+  for (var i = 0, ii = this.extensions.length; i < ii; ++i) {
+    var ext = this.extensions[i];
+    if (relativePath.slice(-ext.length - 1) === '.' + ext) {
+      if (this.targetExtension != null) {
+        relativePath =
+            relativePath.slice(0, -ext.length) + this.targetExtension;
+      }
+      return relativePath;
+    }
+  }
+  return null;
+};
 
-    return cache.set(key, outputString);
+Filter.prototype.processAndCacheFile =
+    function processAndCacheFile(srcDir, destDir, relativePath) {
+  var self = this;
+  var cacheEntry = this._cache.get(relativePath);
+
+  if (cacheEntry) {
+    var hashResult = hash(srcDir, cacheEntry.inputFile);
+
+    if (cacheEntry.hash.hash === hashResult.hash) {
+      this._debug('cache hit: %s', relativePath);
+
+      return symlinkOrCopyFromCache(cacheEntry, destDir, relativePath);
+    } else {
+      this._debug('cache miss: %s \n  - previous: %o \n  - next:     %o ', relativePath, cacheEntry.hash.key, hashResult.key);
+    }
+
+  } else {
+    this._debug('cache prime: %s', relativePath);
+  }
+
+  return Promise.resolve().
+      then(function asyncProcessFile() {
+        return self.processFile(srcDir, destDir, relativePath);
+      }).
+      then(copyToCache,
+      // TODO(@caitp): error wrapper is for API compat, but is not particularly
+      // useful.
+      // istanbul ignore next
+      function asyncProcessFileErrorWrapper(e) {
+        if (typeof e !== 'object') e = new Error('' + e);
+        e.file = relativePath;
+        e.treeDir = srcDir;
+        throw e;
+      });
+
+  function copyToCache() {
+    var entry = {
+      hash: hash(srcDir, relativePath),
+      inputFile: relativePath,
+      outputFile: destDir + '/' + self.getDestFilePath(relativePath),
+      cacheFile: self.cachePath + '/' + relativePath
+    };
+
+    if (fs.existsSync(entry.cacheFile)) {
+      fs.unlinkSync(entry.cacheFile);
+    } else {
+      mkdirp.sync(path.dirname(entry.cacheFile));
+    }
+
+    copyDereferenceSync(entry.outputFile, entry.cacheFile);
+
+    return self._cache.set(relativePath, entry);
+  }
+};
+
+Filter.prototype.processFile =
+    function processFile(srcDir, destDir, relativePath) {
+  var self = this;
+  var inputEncoding = this.inputEncoding;
+  var outputEncoding = this.outputEncoding;
+  if (inputEncoding === void 0) inputEncoding = 'utf8';
+  if (outputEncoding === void 0) outputEncoding = 'utf8';
+  var contents = fs.readFileSync(
+      srcDir + '/' + relativePath, { encoding: inputEncoding });
+
+  return this.processor.processString(this, contents, relativePath).then(function asyncOutputFilteredFile(result) {
+    var outputString = result.string;
+    var outputPath = self.getDestFilePath(relativePath);
+    if (outputPath == null) {
+      throw new Error('canProcessFile("' + relativePath + '") is true, but getDestFilePath("' + relativePath + '") is null');
+    }
+    outputPath = destDir + '/' + outputPath;
+    mkdirp.sync(path.dirname(outputPath));
+    fs.writeFileSync(outputPath, outputString, {
+      encoding: outputEncoding
+    });
+
+    return self.processor.done(self, result);
   });
 };
+
+Filter.prototype.processString =
+    function unimplementedProcessString(contents, relativePath) {
+  throw new Error(
+      'When subclassing cauliflower-filter you must implement the ' +
+      '`processString()` method.');
+};
+
+function hash(src, filePath) {
+  var path = src + '/' + filePath;
+  var key = keyForFile(path);
+
+  return {
+    key: key,
+    hash: helpers.hashStrings([
+      path,
+      key.size,
+      key.mode,
+      key.mtime
+    ])
+  };
+}
+
+function symlinkOrCopyFromCache(entry, dest, relativePath) {
+  mkdirp.sync(path.dirname(entry.outputFile));
+
+  symlinkOrCopySync(entry.cacheFile, dest + '/' + relativePath);
+}
