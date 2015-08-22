@@ -294,57 +294,55 @@ describe('Filter', function() {
         to.equal('utf8');
   });
 
-  if (!/^win/.test(process.platform)) {
-    describe('persistent cache', function() {
-      var f;
+  describe('persistent cache', function() {
+    var f;
+    function F(inputTree, options) { Filter.call(this, inputTree, options); }
+    inherits(F, Filter);
+    F.prototype.baseDir = function() {
+      return '../';
+    };
+
+    beforeEach(function() {
+      f = new F(fixturePath, { persist: true });
+    });
+
+    it('cache is initialized', function() {
+      expect(f.processor.processor._peristentCache).to.be.ok;
+    });
+
+    it('default `baseDir` implementation throws an Unimplemented Exception', function() {
       function F(inputTree, options) { Filter.call(this, inputTree, options); }
       inherits(F, Filter);
-      F.prototype.baseDir = function() {
-        return '../';
-      };
+      expect(function() {
+        new F(fixturePath, { persist: true });
+      }).to.throw(/Filter must implement prototype.baseDir/);
+    });
 
-      beforeEach(function() {
-        f = new F(fixturePath, { persist: true });
+    it('`cacheKeyProcessString` return correct first level file cache', function() {
+      expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).to.eql('4c43793687f9a7170a9149ad391cbf70');
+    });
+
+    it('filter properly reads file tree', function() {
+      var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+        return awk;
       });
 
-      it('cache is initialized', function() {
-        expect(f.processor.processor._peristentCache).to.be.ok;
-      });
-
-      it('default `baseDir` implementation throws an Unimplemented Exception', function() {
-        function F(inputTree, options) { Filter.call(this, inputTree, options); }
-        inherits(F, Filter);
-        expect(function() {
-          new F(fixturePath, { persist: true });
-        }).to.throw(/Filter must implement prototype.baseDir/);
-      });
-
-      it('`cacheKeyProcessString` return correct first level file cache', function() {
-        expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).to.eql('4c43793687f9a7170a9149ad391cbf70');
-      });
-
-      it('filter properly reads file tree', function() {
-        var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
-          return awk;
-        });
-
-        return builder('dir', {
-          persist: true,
-          glob: '**/*.md',
-          search: 'dogs',
-          replace: 'cats'
-        }).then(function(results) {
-          expect(results.files).to.deep.eql([
-            'a/',
-            'a/README.md',
-            'a/bar/',
-            'a/bar/bar.js',
-            'a/foo.js'
-          ]);
-        });
+      return builder('dir', {
+        persist: true,
+        glob: '**/*.md',
+        search: 'dogs',
+        replace: 'cats'
+      }).then(function(results) {
+        expect(results.files).to.deep.eql([
+          'a/',
+          'a/README.md',
+          'a/bar/',
+          'a/bar/bar.js',
+          'a/foo.js'
+        ]);
       });
     });
-  }
+  });
 
   describe('processFile', function() {
     beforeEach(function() {
