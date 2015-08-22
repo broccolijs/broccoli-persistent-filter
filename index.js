@@ -13,7 +13,6 @@ var copyDereferenceSync = require('copy-dereference').sync;
 var Cache = require('./lib/cache');
 var debugGenerator = require('debug');
 var keyForFile = require('./lib/key-for-file');
-var PersistentCache = require('async-disk-cache');
 var md5Hex = require('md5-hex');
 var Processor = require('./lib/processor');
 var defaultProccessor = require('./lib/strategies/default');
