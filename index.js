@@ -1,3 +1,5 @@
+'use strict';
+
 var Filter = require('broccoli-filter');
 var Cache = require('async-disk-cache');
 var md5Hex = require('md5-hex');
@@ -61,8 +63,8 @@ module.exports = PersistentFilter;
  * Subbclass.prototype.cacheKeyProcessString = function(string, relativePath) {
  *   return superAwesomeDigest(string);
  * }
- * ```
  *
+ * ```
  * @class PersistentFilter
  * @param {Tree} inputTree
  * @param {Object} options
@@ -91,7 +93,7 @@ PersistentFilter.prototype.cacheKey = function() {
 /* @public
  *
  * @method baseDir
- * @returns {String} absolute path to the root of the filter...
+ * @returns {String} absolute path to the root of the filter
  */
 PersistentFilter.prototype.baseDir = function() {
   throw Error('Filter must implement prototype.baseDir');
@@ -103,10 +105,9 @@ PersistentFilter.prototype.baseDir = function() {
  * @method cacheKeyProcessString
  * @return {String} this filters top-level cache key
  */
-PersistentFilter.prototype.cacheKeyProcessString = function(string, relativePath) {
+PersistentFilter.prototype.cacheKeyProcessString = function(string/*, relativePath*/) {
   return md5Hex(string);
 };
-
 
 /*
  * @private

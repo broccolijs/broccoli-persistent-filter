@@ -4,7 +4,7 @@
   "description": "broccoli filter but with a persistent cache",
   "main": "index.js",
   "scripts": {
-    "test": "npm test"
+    "test": "mocha tests/"
   },
   "repository": {
     "type": "git",
@@ -25,5 +25,12 @@
     "broccoli-filter": "^0.1.12",
     "hash-for-dep": "^1.0.0",
     "md5-hex": "^1.0.2"
+  },
+  "devDependencies": {
+    "broccoli": "^0.16.3",
+    "expect.js": "^0.3.1",
+    "mocha": "^2.2.5",
+    "mocha-jshint": "^2.2.3",
+    "walk-sync": "^0.1.3"
   }
 }
