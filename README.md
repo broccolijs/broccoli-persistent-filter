@@ -1,7 +1,7 @@
-# broccoli-filter
+# broccoli-persistent-filter
 
-[![Build Status](https://travis-ci.org/broccolijs/broccoli-filter.svg?branch=master)](https://travis-ci.org/broccolijs/broccoli-filter)
-[![Build status](https://ci.appveyor.com/api/projects/status/hc68s0vbn9di4ehi/branch/master?svg=true)](https://ci.appveyor.com/project/joliss/broccoli-filter/branch/master)
+[![Build Status](https://travis-ci.org/stefanpenner/broccoli-persistent-filter.svg?branch=master)](https://travis-ci.org/stefanpenner/broccoli-persistent-filter)
+[![Build status](https://ci.appveyor.com/api/projects/status/gvt0rheb1c2c4jwd?svg=true)](https://ci.appveyor.com/project/embercli/broccoli-persistent-filter)
 
 Helper base class for Broccoli plugins that map input files into output files
 one-to-one.
