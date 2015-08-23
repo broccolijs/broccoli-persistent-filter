@@ -94,8 +94,6 @@ module.exports = node;
 
 ## Persistent Cache
 
-__Note: This feature is experimental and is only available on Unix based systems.__
-
 Adding persist flag allows a subclass to persist state across restarts. This exists to mitigate the upfront cost of some more expensive transforms on warm boot. __It does not aim to improve incremental build performance, if it does, it should indicate something is wrong with the filter or input filter in question.__
 
 ### How does it work?
