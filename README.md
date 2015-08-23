@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/stefanpenner/broccoli-persistent-filter.svg?branch=master)](https://travis-ci.org/stefanpenner/broccoli-persistent-filter)
 [![Build status](https://ci.appveyor.com/api/projects/status/gvt0rheb1c2c4jwd/branch/master?svg=true)](https://ci.appveyor.com/project/embercli/broccoli-persistent-filter/branch/master)
 
-Helper base class for Broccoli plugins that map input files into output files
+Helper base class for Broccoli plugins that map input files into output files. Except with a persistent cache to fast restarts.
 one-to-one.
 
 ## API
