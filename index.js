@@ -16,6 +16,7 @@ var keyForFile = require('./lib/key-for-file');
 var md5Hex = require('md5-hex');
 var Processor = require('./lib/processor');
 var defaultProccessor = require('./lib/strategies/default');
+var hashForDep = require('hash-for-dep');
 
 module.exports = Filter;
 
@@ -85,6 +86,21 @@ Filter.prototype.build = function build() {
       }
     }
   });
+};
+
+/*
+ The cache key to be used for this plugins set of dependencies. By default
+ a hash is created based on `package.json` and nested dependencies.
+
+ Implement this to customize the cache key (for example if you need to
+ account for non-NPM dependencies).
+
+ @public
+ @method cacheKey
+ @returns {String}
+ */
+Filter.prototype.cacheKey = function() {
+  return hashForDep(this.baseDir());
 };
 
 /* @public
