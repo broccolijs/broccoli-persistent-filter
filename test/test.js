@@ -319,7 +319,7 @@ describe('Filter', function() {
     });
 
     it('`cacheKeyProcessString` return correct first level file cache', function() {
-      expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).to.eql('4c43793687f9a7170a9149ad391cbf70');
+      expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).to.eql('272ebac734fa8949ba2aa803f332ec5b');
     });
 
     it('filter properly reads file tree', function() {

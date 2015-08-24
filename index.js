@@ -103,8 +103,8 @@ Filter.prototype.baseDir = function() {
  * @param  {String} string The contents of a file that is being processed
  * @return {String}        A cache key
  */
-Filter.prototype.cacheKeyProcessString = function(string /*, relativePath*/) {
-  return md5Hex(string);
+Filter.prototype.cacheKeyProcessString = function(string, relativePath) {
+  return md5Hex(string + 0x00 + relativePath);
 };
 
 Filter.prototype.canProcessFile =
