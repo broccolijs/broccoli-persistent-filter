@@ -29,7 +29,7 @@ function Filter(inputTree, options) {
     throw new TypeError('Filter is an abstract class and must be sub-classed');
   }
 
-  var name = 'cauliflower-filter:' + (this.constructor.name);
+  var name = 'broccoli-persistent-filter:' + (this.constructor.name);
   if (this.description) {
     name += ' > [' + this.description + ']';
   }
@@ -200,18 +200,25 @@ Filter.prototype.processAndCacheFile =
   }
 };
 
+function invoke(context, fn, args) {
+  return new Promise(function(resolve) {
+    resolve(fn.apply(context, args));
+  });
+}
+
 Filter.prototype.processFile =
     function processFile(srcDir, destDir, relativePath) {
   var self = this;
   var inputEncoding = this.inputEncoding;
   var outputEncoding = this.outputEncoding;
-  if (inputEncoding === void 0) inputEncoding = 'utf8';
-  if (outputEncoding === void 0) outputEncoding = 'utf8';
+  if (inputEncoding === void 0)  { inputEncoding  = 'utf8'; }
+  if (outputEncoding === void 0) { outputEncoding = 'utf8'; }
   var contents = fs.readFileSync(
       srcDir + '/' + relativePath, { encoding: inputEncoding });
 
-  return this.processor.processString(this, contents, relativePath).then(function asyncOutputFilteredFile(result) {
-    var outputString = result.string;
+  var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath]);
+
+  return string.then(function asyncOutputFilteredFile(outputString) {
     var outputPath = self.getDestFilePath(relativePath);
     if (outputPath == null) {
       throw new Error('canProcessFile("' + relativePath + '") is true, but getDestFilePath("' + relativePath + '") is null');
@@ -221,8 +228,6 @@ Filter.prototype.processFile =
     fs.writeFileSync(outputPath, outputString, {
       encoding: outputEncoding
     });
-
-    return self.processor.done(self, result);
   });
 };
 

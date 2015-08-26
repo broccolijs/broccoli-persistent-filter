@@ -307,7 +307,7 @@ describe('Filter', function() {
     });
 
     it('cache is initialized', function() {
-      expect(f.processor.processor._persistentCache).to.be.ok;
+      expect(f.processor.processor._cache).to.be.ok;
     });
 
     it('default `baseDir` implementation throws an Unimplemented Exception', function() {
