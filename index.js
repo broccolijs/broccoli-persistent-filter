@@ -200,6 +200,12 @@ Filter.prototype.processAndCacheFile =
   }
 };
 
+function invoke(context, fn, args) {
+  return new Promise(function(resolve) {
+    resolve(fn.apply(context, args));
+  });
+}
+
 Filter.prototype.processFile =
     function processFile(srcDir, destDir, relativePath) {
   var self = this;
@@ -210,7 +216,9 @@ Filter.prototype.processFile =
   var contents = fs.readFileSync(
       srcDir + '/' + relativePath, { encoding: inputEncoding });
 
-  return this.processor.processString(this, contents, relativePath).then(function asyncOutputFilteredFile(result) {
+  var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath]);
+
+  return string.then(function asyncOutputFilteredFile(result) {
     var outputString = result.string;
     var outputPath = self.getDestFilePath(relativePath);
     if (outputPath == null) {
