@@ -211,8 +211,8 @@ Filter.prototype.processFile =
   var self = this;
   var inputEncoding = this.inputEncoding;
   var outputEncoding = this.outputEncoding;
-  if (inputEncoding === void 0) inputEncoding = 'utf8';
-  if (outputEncoding === void 0) outputEncoding = 'utf8';
+  if (inputEncoding === void 0)  { inputEncoding  = 'utf8'; }
+  if (outputEncoding === void 0) { outputEncoding = 'utf8'; }
   var contents = fs.readFileSync(
       srcDir + '/' + relativePath, { encoding: inputEncoding });
 
