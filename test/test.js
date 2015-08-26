@@ -19,6 +19,7 @@ var minimatch = require('minimatch');
 var rimraf = require('rimraf').sync;
 var walkSync = require('walk-sync');
 var copy = require('copy-dereference').sync;
+var os = require('os');
 
 var fixturePath = path.join(process.cwd(), 'test', 'fixtures');
 
@@ -295,7 +296,6 @@ describe('Filter', function() {
   });
 
   describe('persistent cache', function() {
-    var f;
     function F(inputTree, options) { Filter.call(this, inputTree, options); }
     inherits(F, Filter);
     F.prototype.baseDir = function() {
@@ -303,11 +303,29 @@ describe('Filter', function() {
     };
 
     beforeEach(function() {
-      f = new F(fixturePath, { persist: true });
+      this.originalCacheRoot = process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
+    });
+
+    afterEach(function() {
+      if (this.originalCacheRoot) {
+        process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = this.originalCacheRoot;
+      } else {
+        delete process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
+      }
     });
 
     it('cache is initialized', function() {
+      var f = new F(fixturePath, { persist: true });
+
       expect(f.processor.processor._cache).to.be.ok;
+    });
+
+    it('cache is initialized using ENV variable if present', function() {
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(), 'foo-bar-baz-testing-123');
+
+      var f = new F(fixturePath, { persist: true });
+
+      expect(f.processor.processor._cache.tmpDir).to.be.equal(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
     });
 
     it('default `baseDir` implementation throws an Unimplemented Exception', function() {
@@ -319,6 +337,8 @@ describe('Filter', function() {
     });
 
     it('`cacheKeyProcessString` return correct first level file cache', function() {
+      var f = new F(fixturePath, { persist: true });
+
       expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).to.eql('272ebac734fa8949ba2aa803f332ec5b');
     });
 
