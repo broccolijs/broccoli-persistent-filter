@@ -228,6 +228,8 @@ Filter.prototype.processFile =
     fs.writeFileSync(outputPath, outputString, {
       encoding: outputEncoding
     });
+
+    return outputString;
   });
 };
 
