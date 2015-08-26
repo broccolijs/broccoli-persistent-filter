@@ -218,8 +218,7 @@ Filter.prototype.processFile =
 
   var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath]);
 
-  return string.then(function asyncOutputFilteredFile(result) {
-    var outputString = result.string;
+  return string.then(function asyncOutputFilteredFile(outputString) {
     var outputPath = self.getDestFilePath(relativePath);
     if (outputPath == null) {
       throw new Error('canProcessFile("' + relativePath + '") is true, but getDestFilePath("' + relativePath + '") is null');
@@ -229,8 +228,6 @@ Filter.prototype.processFile =
     fs.writeFileSync(outputPath, outputString, {
       encoding: outputEncoding
     });
-
-    return self.processor.done(self, result);
   });
 };
 
