@@ -29,7 +29,7 @@ function Filter(inputTree, options) {
     throw new TypeError('Filter is an abstract class and must be sub-classed');
   }
 
-  var name = 'cauliflower-filter:' + (this.constructor.name);
+  var name = 'broccoli-persistent-filter:' + (this.constructor.name);
   if (this.description) {
     name += ' > [' + this.description + ']';
   }
