@@ -70,7 +70,13 @@ Filter.prototype.build = function build() {
   var paths = walkSync(srcDir);
 
   this._cache.deleteExcept(paths).forEach(function(key) {
-    fs.unlinkSync(this.cachePath + '/' + key);
+    try {
+      fs.unlinkSync(this.cachePath + '/' + key);
+    } catch (e) {
+      if(e.code !== 'ENOENT') {
+        throw e;
+      }
+    }
   }, this);
 
   return mapSeries(paths, function rebuildEntry(relativePath) {
