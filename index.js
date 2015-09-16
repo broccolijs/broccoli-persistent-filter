@@ -12,7 +12,6 @@ var symlinkOrCopySync = require('symlink-or-copy').sync;
 var copyDereferenceSync = require('copy-dereference').sync;
 var Cache = require('./lib/cache');
 var debugGenerator = require('debug');
-var keyForFile = require('./lib/key-for-file');
 var md5Hex = require('md5-hex');
 var Processor = require('./lib/processor');
 var defaultProccessor = require('./lib/strategies/default');
@@ -67,7 +66,8 @@ Filter.prototype.build = function build() {
   var self = this;
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
-  var paths = walkSync(srcDir);
+  var entries = walkSync.entries(srcDir);
+  var paths = entries.map(byRelativePath);
 
   this._cache.deleteExcept(paths).forEach(function(key) {
     try {
@@ -79,13 +79,17 @@ Filter.prototype.build = function build() {
     }
   }, this);
 
-  return mapSeries(paths, function rebuildEntry(relativePath) {
+  return mapSeries(paths, function rebuildEntry(relativePath, i) {
     var destPath = destDir + '/' + relativePath;
-    if (relativePath.slice(-1) === '/') {
+    var entry = entries[i];
+    var stat = entry.stat;
+    var type = entry.type;
+
+    if (type === 'directory') {
       mkdirp.sync(destPath);
     } else {
       if (self.canProcessFile(relativePath)) {
-        return self.processAndCacheFile(srcDir, destDir, relativePath);
+        return self.processAndCacheFile(srcDir, destDir, relativePath, stat);
       } else {
         var srcPath = srcDir + '/' + relativePath;
         symlinkOrCopySync(srcPath, destPath);
@@ -151,13 +155,13 @@ Filter.prototype.getDestFilePath = function getDestFilePath(relativePath) {
 };
 
 Filter.prototype.processAndCacheFile =
-    function processAndCacheFile(srcDir, destDir, relativePath) {
+    function processAndCacheFile(srcDir, destDir, relativePath, stat) {
   var self = this;
   var cacheEntry = this._cache.get(relativePath);
   var outputRelativeFile = self.getDestFilePath(relativePath);
 
   if (cacheEntry) {
-    var hashResult = hash(srcDir, cacheEntry.inputFile);
+    var hashResult = hash(srcDir, cacheEntry.inputFile, stat);
 
     if (cacheEntry.hash.hash === hashResult.hash) {
       this._debug('cache hit: %s', relativePath);
@@ -188,7 +192,7 @@ Filter.prototype.processAndCacheFile =
 
   function copyToCache() {
     var entry = {
-      hash: hash(srcDir, relativePath),
+      hash: hash(srcDir, relativePath, stat),
       inputFile: relativePath,
       outputFile: destDir + '/' + outputRelativeFile,
       cacheFile: self.cachePath + '/' + outputRelativeFile
@@ -246,17 +250,20 @@ Filter.prototype.processString =
       '`processString()` method.');
 };
 
-function hash(src, filePath) {
+function hash(src, filePath, stat) {
   var path = src + '/' + filePath;
-  var key = keyForFile(path);
+
+  if (stat.type === 'directory') {
+    throw new Error('cannot diff directory');
+  }
 
   return {
-    key: key,
+    key: stat,
     hash: helpers.hashStrings([
       path,
-      key.size,
-      key.mode,
-      key.mtime
+      stat.size,
+      stat.mode,
+      stat.mtime
     ])
   };
 }
@@ -265,4 +272,8 @@ function symlinkOrCopyFromCache(entry, dest, relativePath) {
   mkdirp.sync(path.dirname(entry.outputFile));
 
   symlinkOrCopySync(entry.cacheFile, dest + '/' + relativePath);
+}
+
+function byRelativePath (entry) {
+  return entry.relativePath;
 }
