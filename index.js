@@ -83,9 +83,8 @@ Filter.prototype.build = function build() {
     var destPath = destDir + '/' + relativePath;
     var entry = entries[i];
     var stat = entry.stat;
-    var type = entry.type;
 
-    if (type === 'directory') {
+    if (entry.isDirectory()) {
       mkdirp.sync(destPath);
     } else {
       if (self.canProcessFile(relativePath)) {
@@ -253,7 +252,7 @@ Filter.prototype.processString =
 function hash(src, filePath, stat) {
   var path = src + '/' + filePath;
 
-  if (stat.type === 'directory') {
+  if (stat.isDirectory()) {
     throw new Error('cannot diff directory');
   }
 
