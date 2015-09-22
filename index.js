@@ -82,13 +82,12 @@ Filter.prototype.build = function build() {
   return mapSeries(paths, function rebuildEntry(relativePath, i) {
     var destPath = destDir + '/' + relativePath;
     var entry = entries[i];
-    var stat = entry.stat;
 
     if (entry.isDirectory()) {
       mkdirp.sync(destPath);
     } else {
       if (self.canProcessFile(relativePath)) {
-        return self.processAndCacheFile(srcDir, destDir, relativePath, stat);
+        return self.processAndCacheFile(srcDir, destDir, entry);
       } else {
         var srcPath = srcDir + '/' + relativePath;
         symlinkOrCopySync(srcPath, destPath);
@@ -154,13 +153,14 @@ Filter.prototype.getDestFilePath = function getDestFilePath(relativePath) {
 };
 
 Filter.prototype.processAndCacheFile =
-    function processAndCacheFile(srcDir, destDir, relativePath, stat) {
+    function processAndCacheFile(srcDir, destDir, entry) {
   var self = this;
+  var relativePath = entry.relativePath;
   var cacheEntry = this._cache.get(relativePath);
   var outputRelativeFile = self.getDestFilePath(relativePath);
 
   if (cacheEntry) {
-    var hashResult = hash(srcDir, cacheEntry.inputFile, stat);
+    var hashResult = hash(srcDir, cacheEntry.inputFile, entry);
 
     if (cacheEntry.hash.hash === hashResult.hash) {
       this._debug('cache hit: %s', relativePath);
@@ -190,22 +190,22 @@ Filter.prototype.processAndCacheFile =
       });
 
   function copyToCache() {
-    var entry = {
-      hash: hash(srcDir, relativePath, stat),
+    var cacheEntry = {
+      hash: hash(srcDir, relativePath, entry),
       inputFile: relativePath,
       outputFile: destDir + '/' + outputRelativeFile,
       cacheFile: self.cachePath + '/' + outputRelativeFile
     };
 
-    if (fs.existsSync(entry.cacheFile)) {
-      fs.unlinkSync(entry.cacheFile);
+    if (fs.existsSync(cacheEntry.cacheFile)) {
+      fs.unlinkSync(cacheEntry.cacheFile);
     } else {
-      mkdirp.sync(path.dirname(entry.cacheFile));
+      mkdirp.sync(path.dirname(cacheEntry.cacheFile));
     }
 
-    copyDereferenceSync(entry.outputFile, entry.cacheFile);
+    copyDereferenceSync(cacheEntry.outputFile, cacheEntry.cacheFile);
 
-    return self._cache.set(relativePath, entry);
+    return self._cache.set(relativePath, cacheEntry);
   }
 };
 
@@ -249,20 +249,20 @@ Filter.prototype.processString =
       '`processString()` method.');
 };
 
-function hash(src, filePath, stat) {
-  var path = src + '/' + filePath;
+function hash(src, relativePath, entry) {
+  var path = src + '/' + relativePath;
 
-  if (stat.isDirectory()) {
+  if (entry.isDirectory()) {
     throw new Error('cannot diff directory');
   }
 
   return {
-    key: stat,
+    key: entry,
     hash: helpers.hashStrings([
       path,
-      stat.size,
-      stat.mode,
-      stat.mtime
+      entry.size,
+      entry.mode,
+      entry.mtime
     ])
   };
 }
