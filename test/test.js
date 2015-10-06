@@ -35,7 +35,7 @@ function ReplaceFilter(inputTree, options) {
 inherits(ReplaceFilter, Filter);
 
 ReplaceFilter.prototype.getDestFilePath = function(relativePath) {
-  if (this._glob === void 0) {
+  if (this._glob === undefined) {
     return Filter.prototype.getDestFilePath.call(this, relativePath);
   }
   return minimatch(relativePath, this._glob) ? relativePath : null;
@@ -87,14 +87,13 @@ describe('Filter', function() {
     fs.unlinkSync(relativePath);
   }
 
-  it('should throw if called as a function', function() {
+  it('throws if called as a function', function() {
     expect(function() {
       return Filter();
     }).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
-
-  it('should throw if called on object which does not a child class of Filter',
+  it('throws if called on object which does not a child class of Filter',
       function() {
     expect(function() {
       return Filter.call({});
@@ -109,55 +108,58 @@ describe('Filter', function() {
     }).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
-
-  it('should throw if base Filter class is new-ed', function() {
+  it('throws if base Filter class is new-ed', function() {
     expect(function() {
       return new Filter();
     }).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
-
-  it('should throw if `processString` is not implemented', function() {
+  it('throws if `processString` is not implemented', function() {
     expect(function() {
       new IncompleteFilter('.').processString('foo', 'fake_path');
     }).to.throw(Error, /must implement/);
   });
 
-
-  it('should process files with extensions included in `extensions` list by ' +
+  it('processes files with extensions included in `extensions` list by ' +
      'default', function() {
     function MyFilter(inputTree, options) {
       if (!this) return new MyFilter(inputTree, options);
       Filter.call(this, inputTree, options);
     }
+
     inherits(MyFilter, Filter);
+
     var filter = MyFilter('.', { extensions: ['c', 'cc', 'js']});
+
     expect(filter.canProcessFile('foo.c')).to.equal(true);
     expect(filter.canProcessFile('test.js')).to.equal(true);
     expect(filter.canProcessFile('blob.cc')).to.equal(true);
     expect(filter.canProcessFile('twerp.rs')).to.equal(false);
   });
 
-  it('should replace matched extension with targetExtension by default',
+  it('replaces matched extension with targetExtension by default',
       function() {
     function MyFilter(inputTree, options) {
       if (!this) return new MyFilter(inputTree, options);
       Filter.call(this, inputTree, options);
     }
+
     inherits(MyFilter, Filter);
+
     var filter = MyFilter('.', {
       extensions: ['c', 'cc', 'js'],
       targetExtension: 'zebra'
     });
+
     expect(filter.getDestFilePath('foo.c')).to.equal('foo.zebra');
     expect(filter.getDestFilePath('test.js')).to.equal('test.zebra');
     expect(filter.getDestFilePath('blob.cc')).to.equal('blob.zebra');
     expect(filter.getDestFilePath('twerp.rs')).to.equal(null);
   });
 
-
   it('should processString only when canProcessFile returns true',
       function() {
+
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       sinon.spy(awk, 'processString');
       return awk;
@@ -169,6 +171,7 @@ describe('Filter', function() {
       replace: 'cats'
     }).then(function(results) {
       var awk = results.subject;
+
       expect(read(results.directory + '/a/README.md')).
           to.equal('Nicest cats in need of homes');
       expect(read(results.directory + '/a/foo.js')).
@@ -177,8 +180,8 @@ describe('Filter', function() {
     });
   });
 
-  it('should complain if canProcessFile is true but getDestFilePath is null',
-      function() {
+  it('complains if canProcessFile is true but getDestFilePath is null',
+     function() {
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       awk.canProcessFile = function() {
         // We cannot return `true` here unless `getDestFilePath` also returns
@@ -195,11 +198,11 @@ describe('Filter', function() {
     })).to.eventually.be.rejectedWith(Error, /getDestFilePath.* is null/);
   });
 
-  it('should purge cache', function() {
-
+  it('purges cache', function() {
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       return awk;
     });
+
     var fileForRemoval = path.join(fixturePath, 'dir', 'a', 'README.md');
 
     return builder('dir', {
@@ -262,7 +265,6 @@ describe('Filter', function() {
     });
   });
 
-
   function existsSync(path) {
     // node is apparently deprecating this function..
     try {
@@ -273,31 +275,47 @@ describe('Filter', function() {
     }
   }
 
-  it('should not overwrite core options if they are not present', function() {
-    function F(inputTree, options) { Filter.call(this, inputTree, options); }
+  it('does not overwrite core options if they are not present', function() {
+    function F(inputTree, options) {
+      Filter.call(this, inputTree, options);
+    }
+
     inherits(F, Filter);
+
     F.prototype.extensions = ['js', 'rs'];
     F.prototype.targetExtension = 'glob';
     F.prototype.inputEncoding = 'latin1';
     F.prototype.outputEncoding = 'shift-jis';
+
     expect(new F('.').extensions).to.eql(['js', 'rs']);
     expect(new F('.').targetExtension).to.equal('glob');
     expect(new F('.').inputEncoding).to.equal('latin1');
     expect(new F('.').outputEncoding).to.equal('shift-jis');
 
-    expect(new F('.', { extensions: ['x'] }).extensions).
-        to.eql(['x']);
-    expect(new F('.', { targetExtension: 'c' }).targetExtension).
-        to.equal('c');
-    expect(new F('.', { inputEncoding: 'utf8'} ).inputEncoding).
-        to.equal('utf8');
-    expect(new F('.', { outputEncoding: 'utf8' }).outputEncoding).
-        to.equal('utf8');
+    expect(new F('.', {
+      extensions: ['x']
+    }).extensions).to.eql(['x']);
+
+    expect(new F('.', {
+      targetExtension: 'c'
+    }).targetExtension).to.equal('c');
+
+    expect(new F('.', {
+      inputEncoding: 'utf8'}
+    ).inputEncoding).to.equal('utf8');
+
+    expect(new F('.', {
+      outputEncoding: 'utf8'
+    }).outputEncoding).to.equal('utf8');
   });
 
   describe('persistent cache', function() {
-    function F(inputTree, options) { Filter.call(this, inputTree, options); }
+    function F(inputTree, options) {
+      Filter.call(this, inputTree, options);
+    }
+
     inherits(F, Filter);
+
     F.prototype.baseDir = function() {
       return '../';
     };
@@ -314,23 +332,33 @@ describe('Filter', function() {
       }
     });
 
-    it('cache is initialized', function() {
-      var f = new F(fixturePath, { persist: true });
+    it('initializes cache', function() {
+      var f = new F(fixturePath, {
+        persist: true
+      });
 
+      // TODO: we should just deal in observable differences, not reaching into private state
       expect(f.processor.processor._cache).to.be.ok;
     });
 
-    it('cache is initialized using ENV variable if present', function() {
+    it('initializes cache using ENV variable if present', function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(), 'foo-bar-baz-testing-123');
 
-      var f = new F(fixturePath, { persist: true });
+      var f = new F(fixturePath, {
+        persist: true
+      });
 
+      // TODO: we should just deal in observable differences, not reaching into private state
       expect(f.processor.processor._cache.tmpDir).to.be.equal(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
     });
 
-    it('default `baseDir` implementation throws an Unimplemented Exception', function() {
-      function F(inputTree, options) { Filter.call(this, inputTree, options); }
+    it('throws an UnimplementedException if the abstract `baseDir` implementation is used', function() {
+      function F(inputTree, options) {
+        Filter.call(this, inputTree, options);
+      }
+
       inherits(F, Filter);
+
       expect(function() {
         new F(fixturePath, { persist: true });
       }).to.throw(/Filter must implement prototype.baseDir/);
@@ -342,7 +370,7 @@ describe('Filter', function() {
       expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).to.eql('272ebac734fa8949ba2aa803f332ec5b');
     });
 
-    it('filter properly reads file tree', function() {
+    it('properly reads the file tree', function() {
       var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
         return awk;
       });
@@ -375,7 +403,7 @@ describe('Filter', function() {
       fs.writeFileSync.restore();
     });
 
-    it('should not effect the current cwd', function() {
+    it('does not effect the current cwd', function() {
       var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
         sinon.spy(awk, 'canProcessFile');
         return awk;
@@ -388,10 +416,14 @@ describe('Filter', function() {
       }).then(function(results) {
         expect(fs.mkdirSync.calledWith(path.join(process.cwd(), 'a'), 493)).to.eql(false);
         expect(fs.mkdirSync.calledWith(path.join(process.cwd(), 'a', 'bar'), 493)).to.eql(false);
-        expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'), "Nicest dogs in need of homes")).to.eql(false);
+
+        expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
+                                           'Nicest dogs in need of homes')).to.eql(false);
+
         return results.builder();
       }).then(function() {
-        expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'), "Nicest dogs in need of homes")).to.eql(false);
+        expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
+                                           'Nicest dogs in need of homes')).to.eql(false);
       });
     });
   });

@@ -19,7 +19,6 @@ var hashForDep = require('hash-for-dep');
 
 module.exports = Filter;
 
-
 Filter.prototype = Object.create(Plugin.prototype);
 Filter.prototype.constructor = Filter;
 function Filter(inputTree, options) {
