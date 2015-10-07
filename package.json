@@ -29,6 +29,7 @@
   ],
   "dependencies": {
     "async-disk-cache": "^1.0.0",
+    "blank-object": "^1.0.1",
     "broccoli-kitchen-sink-helpers": "^0.2.7",
     "broccoli-plugin": "^1.0.0",
     "copy-dereference": "^1.0.0",

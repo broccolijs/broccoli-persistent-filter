@@ -16,11 +16,13 @@ var md5Hex = require('md5-hex');
 var Processor = require('./lib/processor');
 var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
+var BlankObject = require('blank-object');
 
 module.exports = Filter;
 
 Filter.prototype = Object.create(Plugin.prototype);
 Filter.prototype.constructor = Filter;
+
 function Filter(inputTree, options) {
   if (!this || !(this instanceof Filter) ||
       Object.getPrototypeOf(this) === Filter.prototype) {
@@ -28,6 +30,7 @@ function Filter(inputTree, options) {
   }
 
   var name = 'broccoli-persistent-filter:' + (this.constructor.name);
+
   if (this.description) {
     name += ' > [' + this.description + ']';
   }
@@ -41,14 +44,10 @@ function Filter(inputTree, options) {
 
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
   if (options) {
-    if (options.extensions != null)
-      this.extensions = options.extensions;
-    if (options.targetExtension != null)
-      this.targetExtension = options.targetExtension;
-    if (options.inputEncoding != null)
-      this.inputEncoding = options.inputEncoding;
-    if (options.outputEncoding != null)
-      this.outputEncoding = options.outputEncoding;
+    if (options.extensions != null)      this.extensions = options.extensions;
+    if (options.targetExtension != null) this.targetExtension = options.targetExtension;
+    if (options.inputEncoding != null)   this.inputEncoding = options.inputEncoding;
+    if (options.outputEncoding != null)  this.outputEncoding = options.outputEncoding;
     if (options.persist) {
       this.processor.setStrategy(require('./lib/strategies/persistent'));
     }
@@ -57,12 +56,12 @@ function Filter(inputTree, options) {
   this.processor.init(this);
 
   this._cache = new Cache();
-  this._canProcessCache = Object.create(null);
-  this._destFilePathCache = Object.create(null);
+  this._canProcessCache = new BlankObject();
+  this._destFilePathCache = new BlankObject();
 }
 
-Filter.prototype.build = function build() {
-  var self = this;
+Filter.prototype.build = function() {
+  var filter = this;
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
   var entries = walkSync.entries(srcDir);
@@ -85,8 +84,8 @@ Filter.prototype.build = function build() {
     if (entry.isDirectory()) {
       mkdirp.sync(destPath);
     } else {
-      if (self.canProcessFile(relativePath)) {
-        return self.processAndCacheFile(srcDir, destDir, entry);
+      if (filter.canProcessFile(relativePath)) {
+        return filter.processAndCacheFile(srcDir, destDir, entry);
       } else {
         var srcPath = srcDir + '/' + relativePath;
         symlinkOrCopySync(srcPath, destPath);
@@ -135,28 +134,30 @@ Filter.prototype.canProcessFile =
   return !!this.getDestFilePath(relativePath);
 };
 
-Filter.prototype.getDestFilePath = function getDestFilePath(relativePath) {
-  if (this.extensions == null) return relativePath;
+Filter.prototype.getDestFilePath = function(relativePath) {
+  if (this.extensions == null) {
+    return relativePath;
+  }
 
   for (var i = 0, ii = this.extensions.length; i < ii; ++i) {
     var ext = this.extensions[i];
     if (relativePath.slice(-ext.length - 1) === '.' + ext) {
       if (this.targetExtension != null) {
-        relativePath =
-            relativePath.slice(0, -ext.length) + this.targetExtension;
+        relativePath = relativePath.slice(0, -ext.length) + this.targetExtension;
       }
       return relativePath;
     }
   }
+
   return null;
 };
 
-Filter.prototype.processAndCacheFile =
-    function processAndCacheFile(srcDir, destDir, entry) {
-  var self = this;
+Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry) {
+
+  var filter = this;
   var relativePath = entry.relativePath;
   var cacheEntry = this._cache.get(relativePath);
-  var outputRelativeFile = self.getDestFilePath(relativePath);
+  var outputRelativeFile = filter.getDestFilePath(relativePath);
 
   if (cacheEntry) {
     var hashResult = hash(srcDir, cacheEntry.inputFile, entry);
@@ -175,7 +176,7 @@ Filter.prototype.processAndCacheFile =
 
   return Promise.resolve().
       then(function asyncProcessFile() {
-        return self.processFile(srcDir, destDir, relativePath);
+        return filter.processFile(srcDir, destDir, relativePath);
       }).
       then(copyToCache,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
@@ -193,7 +194,7 @@ Filter.prototype.processAndCacheFile =
       hash: hash(srcDir, relativePath, entry),
       inputFile: relativePath,
       outputFile: destDir + '/' + outputRelativeFile,
-      cacheFile: self.cachePath + '/' + outputRelativeFile
+      cacheFile: filter.cachePath + '/' + outputRelativeFile
     };
 
     if (fs.existsSync(cacheEntry.cacheFile)) {
@@ -204,7 +205,7 @@ Filter.prototype.processAndCacheFile =
 
     copyDereferenceSync(cacheEntry.outputFile, cacheEntry.cacheFile);
 
-    return self._cache.set(relativePath, cacheEntry);
+    return filter._cache.set(relativePath, cacheEntry);
   }
 };
 
@@ -214,25 +215,34 @@ function invoke(context, fn, args) {
   });
 }
 
-Filter.prototype.processFile =
-    function processFile(srcDir, destDir, relativePath) {
-  var self = this;
+Filter.prototype.processFile = function(srcDir, destDir, relativePath) {
+  var filter = this;
   var inputEncoding = this.inputEncoding;
   var outputEncoding = this.outputEncoding;
-  if (inputEncoding === void 0)  { inputEncoding  = 'utf8'; }
-  if (outputEncoding === void 0) { outputEncoding = 'utf8'; }
-  var contents = fs.readFileSync(
-      srcDir + '/' + relativePath, { encoding: inputEncoding });
+
+  if (inputEncoding === undefined)  inputEncoding  = 'utf8';
+  if (outputEncoding === undefined) outputEncoding = 'utf8';
+
+  var contents = fs.readFileSync(srcDir + '/' + relativePath, {
+    encoding: inputEncoding
+  });
 
   var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath]);
 
   return string.then(function asyncOutputFilteredFile(outputString) {
-    var outputPath = self.getDestFilePath(relativePath);
+
+    var outputPath = filter.getDestFilePath(relativePath);
+
     if (outputPath == null) {
-      throw new Error('canProcessFile("' + relativePath + '") is true, but getDestFilePath("' + relativePath + '") is null');
+      throw new Error('canProcessFile("' + relativePath +
+                      '") is true, but getDestFilePath("' +
+                      relativePath + '") is null');
     }
+
     outputPath = destDir + '/' + outputPath;
+
     mkdirp.sync(path.dirname(outputPath));
+
     fs.writeFileSync(outputPath, outputString, {
       encoding: outputEncoding
     });
@@ -241,8 +251,7 @@ Filter.prototype.processFile =
   });
 };
 
-Filter.prototype.processString =
-    function unimplementedProcessString(contents, relativePath) {
+Filter.prototype.processString = function(/* contents, relativePath */) {
   throw new Error(
       'When subclassing cauliflower-filter you must implement the ' +
       '`processString()` method.');
