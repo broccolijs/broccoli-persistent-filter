@@ -1,4 +1,5 @@
 'use strict';
+
 var inherits = require('util').inherits;
 var Filter = require('../../');
 
