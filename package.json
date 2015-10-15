@@ -34,6 +34,7 @@
     "broccoli-plugin": "^1.0.0",
     "copy-dereference": "^1.0.0",
     "debug": "^2.2.0",
+    "fs-tree-diff": "^0.2.0",
     "hash-for-dep": "^1.0.0",
     "md5-hex": "^1.0.2",
     "mkdirp": "^0.5.1",

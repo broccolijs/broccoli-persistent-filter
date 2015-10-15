@@ -5,18 +5,16 @@ var path = require('path');
 var mkdirp = require('mkdirp');
 var Promise = require('rsvp').Promise;
 var Plugin = require('broccoli-plugin');
-var helpers = require('broccoli-kitchen-sink-helpers');
 var walkSync = require('walk-sync');
 var mapSeries = require('promise-map-series');
 var symlinkOrCopySync = require('symlink-or-copy').sync;
-var copyDereferenceSync = require('copy-dereference').sync;
-var Cache = require('./lib/cache');
 var debugGenerator = require('debug');
 var md5Hex = require('md5-hex');
 var Processor = require('./lib/processor');
 var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
 var BlankObject = require('blank-object');
+var FSTree = require('fs-tree-diff');
 
 module.exports = Filter;
 
@@ -41,6 +39,8 @@ function Filter(inputTree, options) {
 
   this.processor = new Processor(options);
   this.processor.setStrategy(defaultProccessor);
+  this.currentTree = new FSTree();
+  this._persistentOutput = true;
 
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
   if (options) {
@@ -55,43 +55,44 @@ function Filter(inputTree, options) {
 
   this.processor.init(this);
 
-  this._cache = new Cache();
   this._canProcessCache = new BlankObject();
   this._destFilePathCache = new BlankObject();
 }
 
 Filter.prototype.build = function() {
-  var filter = this;
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
   var entries = walkSync.entries(srcDir);
-  var paths = entries.map(byRelativePath);
+  var nextTree = new FSTree.fromEntries(entries);
+  var currentTree = this.currentTree;
 
-  this._cache.deleteExcept(paths).forEach(function(key) {
-    try {
-      fs.unlinkSync(this.cachePath + '/' + key);
-    } catch (e) {
-      if(e.code !== 'ENOENT') {
-        throw e;
+  this.currentTree = nextTree;
+  var patches = currentTree.calculatePatch(nextTree);
+
+  return mapSeries(patches, function(patch) {
+    var operation = patch[0];
+    var relativePath = patch[1];
+    var entry = patch[2];
+    var outputPath = destDir + '/' + relativePath;
+
+    this._debug('[operation:%s] %s', operation, relativePath);
+    if (operation === 'change') {
+      operation = 'create';
+    }
+
+    switch (operation) {
+      case 'mkdir':  return fs.mkdirSync(outputPath);
+      case 'rmdir':  return fs.rmdirSync(outputPath);
+      case 'unlink': return fs.unlinkSync(outputPath);
+      case 'create':
+      if (this.canProcessFile(relativePath)) {
+        return this.processAndCacheFile(srcDir, destDir, entry);
+      } else {
+        var srcPath = srcDir + '/' + relativePath;
+        return symlinkOrCopySync(srcPath, outputPath);
       }
     }
   }, this);
-
-  return mapSeries(paths, function rebuildEntry(relativePath, i) {
-    var destPath = destDir + '/' + relativePath;
-    var entry = entries[i];
-
-    if (entry.isDirectory()) {
-      mkdirp.sync(destPath);
-    } else {
-      if (filter.canProcessFile(relativePath)) {
-        return filter.processAndCacheFile(srcDir, destDir, entry);
-      } else {
-        var srcPath = srcDir + '/' + relativePath;
-        symlinkOrCopySync(srcPath, destPath);
-      }
-    }
-  });
 };
 
 /*
@@ -153,32 +154,15 @@ Filter.prototype.getDestFilePath = function(relativePath) {
 };
 
 Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry) {
-
   var filter = this;
   var relativePath = entry.relativePath;
-  var cacheEntry = this._cache.get(relativePath);
   var outputRelativeFile = filter.getDestFilePath(relativePath);
-
-  if (cacheEntry) {
-    var hashResult = hash(srcDir, cacheEntry.inputFile, entry);
-
-    if (cacheEntry.hash.hash === hashResult.hash) {
-      this._debug('cache hit: %s', relativePath);
-
-      return symlinkOrCopyFromCache(cacheEntry, destDir, outputRelativeFile);
-    } else {
-      this._debug('cache miss: %s \n  - previous: %o \n  - next:     %o ', relativePath, cacheEntry.hash.key, hashResult.key);
-    }
-
-  } else {
-    this._debug('cache prime: %s', relativePath);
-  }
 
   return Promise.resolve().
       then(function asyncProcessFile() {
         return filter.processFile(srcDir, destDir, relativePath);
       }).
-      then(copyToCache,
+      then(undefined,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
       // useful.
       // istanbul ignore next
@@ -188,25 +172,6 @@ Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry) {
         e.treeDir = srcDir;
         throw e;
       });
-
-  function copyToCache() {
-    var cacheEntry = {
-      hash: hash(srcDir, relativePath, entry),
-      inputFile: relativePath,
-      outputFile: destDir + '/' + outputRelativeFile,
-      cacheFile: filter.cachePath + '/' + outputRelativeFile
-    };
-
-    if (fs.existsSync(cacheEntry.cacheFile)) {
-      fs.unlinkSync(cacheEntry.cacheFile);
-    } else {
-      mkdirp.sync(path.dirname(cacheEntry.cacheFile));
-    }
-
-    copyDereferenceSync(cacheEntry.outputFile, cacheEntry.cacheFile);
-
-    return filter._cache.set(relativePath, cacheEntry);
-  }
 };
 
 function invoke(context, fn, args) {
@@ -241,11 +206,18 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath) {
 
     outputPath = destDir + '/' + outputPath;
 
-    mkdirp.sync(path.dirname(outputPath));
+    try {
+      fs.writeFileSync(outputPath, outputString, {
+        encoding: outputEncoding
+      });
 
-    fs.writeFileSync(outputPath, outputString, {
-      encoding: outputEncoding
-    });
+    } catch(e) {
+      // optimistically assume the DIR was patched correctly
+      mkdirp.sync(path.dirname(outputPath));
+      fs.writeFileSync(outputPath, outputString, {
+        encoding: outputEncoding
+      });
+    }
 
     return outputString;
   });
@@ -256,31 +228,3 @@ Filter.prototype.processString = function(/* contents, relativePath */) {
       'When subclassing cauliflower-filter you must implement the ' +
       '`processString()` method.');
 };
-
-function hash(src, relativePath, entry) {
-  var path = src + '/' + relativePath;
-
-  if (entry.isDirectory()) {
-    throw new Error('cannot diff directory');
-  }
-
-  return {
-    key: entry,
-    hash: helpers.hashStrings([
-      path,
-      entry.size,
-      entry.mode,
-      entry.mtime
-    ])
-  };
-}
-
-function symlinkOrCopyFromCache(entry, dest, relativePath) {
-  mkdirp.sync(path.dirname(entry.outputFile));
-
-  symlinkOrCopySync(entry.cacheFile, dest + '/' + relativePath);
-}
-
-function byRelativePath (entry) {
-  return entry.relativePath;
-}
