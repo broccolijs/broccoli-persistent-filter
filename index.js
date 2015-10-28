@@ -74,6 +74,7 @@ Filter.prototype.build = function() {
     var relativePath = patch[1];
     var entry = patch[2];
     var outputPath = destDir + '/' + relativePath;
+    var outputFilePath = this.getDestFilePath(outputPath) || outputPath;
 
     this._debug('[operation:%s] %s', operation, relativePath);
 
@@ -82,10 +83,10 @@ Filter.prototype.build = function() {
       case 'rmdir':  return fs.rmdirSync(outputPath);
       case 'unlink': return fs.unlinkSync(outputPath);
       case 'change':
-        fs.unlinkSync(outputPath);
-        return this._handleFile(relativePath, srcDir, destDir, entry, outputPath);
+        fs.unlinkSync(outputFilePath);
+        return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath);
       case 'create':
-        return this._handleFile(relativePath, srcDir, destDir, entry, outputPath);
+        return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath);
     }
   }, this);
 };
