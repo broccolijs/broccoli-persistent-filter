@@ -160,7 +160,6 @@ Filter.prototype.getDestFilePath = function(relativePath) {
 Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry) {
   var filter = this;
   var relativePath = entry.relativePath;
-  var outputRelativeFile = filter.getDestFilePath(relativePath);
 
   return Promise.resolve().
       then(function asyncProcessFile() {
