@@ -76,23 +76,27 @@ Filter.prototype.build = function() {
     var outputPath = destDir + '/' + relativePath;
 
     this._debug('[operation:%s] %s', operation, relativePath);
-    if (operation === 'change') {
-      operation = 'create';
-    }
 
     switch (operation) {
       case 'mkdir':  return fs.mkdirSync(outputPath);
       case 'rmdir':  return fs.rmdirSync(outputPath);
       case 'unlink': return fs.unlinkSync(outputPath);
+      case 'change':
+        fs.unlinkSync(outputPath);
+        return this._handleFile(relativePath, srcDir, destDir, entry, outputPath);
       case 'create':
-      if (this.canProcessFile(relativePath)) {
-        return this.processAndCacheFile(srcDir, destDir, entry);
-      } else {
-        var srcPath = srcDir + '/' + relativePath;
-        return symlinkOrCopySync(srcPath, outputPath);
-      }
+        return this._handleFile(relativePath, srcDir, destDir, entry, outputPath);
     }
   }, this);
+};
+
+Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath) {
+  if (this.canProcessFile(relativePath)) {
+    return this.processAndCacheFile(srcDir, destDir, entry);
+  } else {
+    var srcPath = srcDir + '/' + relativePath;
+    return symlinkOrCopySync(srcPath, outputPath);
+  }
 };
 
 /*
