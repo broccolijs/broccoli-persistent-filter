@@ -229,6 +229,6 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath) {
 
 Filter.prototype.processString = function(/* contents, relativePath */) {
   throw new Error(
-      'When subclassing cauliflower-filter you must implement the ' +
+      'When subclassing broccoli-persistent-filter you must implement the ' +
       '`processString()` method.');
 };

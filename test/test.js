@@ -23,6 +23,7 @@ var os = require('os');
 var ReplaceFilter = require('./helpers/replacer');
 var IncompleteFilter = require('./helpers/incomplete');
 var MyFilter = require('./helpers/simple');
+var Rot13Filter = require('./helpers/rot13');
 
 var fixturePath = path.join(process.cwd(), 'test', 'fixtures');
 
@@ -112,6 +113,195 @@ describe('Filter', function() {
     expect(filter.getDestFilePath('twerp.rs')).to.equal(null);
   });
 
+  describe('on rebuid', function() {
+    it('calls processString only if work is needed', function() {
+      var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+        sinon.spy(awk, 'processString');
+        return awk;
+      });
+      var originalFileContent;
+      var originalFilePath;
+
+      return builder('dir').then(function(results) {
+        var awk = results.subject;
+        // first time, build everything
+        expect(awk.processString.callCount).to.equal(3);
+        awk.processString.callCount = 0;
+        return results.builder();
+      }).then(function(results) {
+        var awk = results.subject;
+        // rebuild, but no changes (build nothing);
+        expect(awk.processString.callCount).to.equal(0);
+
+        originalFilePath = awk.inputPaths[0] + '/a/README.md';
+        originalFileContent = fs.readFileSync(originalFilePath);
+        fs.writeFileSync(awk.inputPaths[0] + '/a/README.md', 'OMG');
+
+        return results.builder();
+      }).then(function(results) {
+        var awk = results.subject;
+        // rebuild only 1 file
+        expect(awk.processString.callCount).to.equal(1);
+        awk.processString.callCount = 0;
+
+        fs.unlinkSync(originalFilePath);
+
+        return results.builder();
+      }).then(function(results) {
+        var awk = results.subject;
+        // rebuild only 0 files
+        expect(awk.processString.callCount).to.equal(0);
+      }).finally(function() {
+        fs.writeFileSync(originalFilePath, originalFileContent);
+      });
+    });
+
+    describe('with extensions & targetExtension', function() {
+      it('calls processString only if work is needed', function() {
+        var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+          sinon.spy(awk, 'processString');
+          return awk;
+        });
+        var originalFileContent;
+        var originalFilePath;
+        var originalJSFileContent;
+        var originalJSFilePath;
+        var someDirPath;
+
+        return builder('dir', {
+          extensions: ['js'],
+          targetExtension: 'OMG'
+        }).then(function(results) {
+          var awk = results.subject;
+          // first time, build everything
+          expect(awk.processString.callCount).to.equal(2);
+          awk.processString.callCount = 0;
+          return results.builder();
+        }).then(function(results) {
+          var awk = results.subject;
+          // rebuild, but no changes (build nothing);
+          expect(awk.processString.callCount).to.equal(0);
+
+          originalFilePath = awk.inputPaths[0] + '/a/README.md';
+          originalFileContent = fs.readFileSync(originalFilePath);
+          fs.writeFileSync(originalFilePath, 'OMG');
+
+          expect(fs.existsSync(results.directory + '/a/foo.OMG')).to.be.true;
+
+          return results.builder();
+        }).then(function(results) {
+          var awk = results.subject;
+          // rebuild 0 files, changed file does not match extensions
+          expect(awk.processString.callCount).to.equal(0);
+          awk.processString.callCount = 0;
+
+          fs.unlinkSync(originalFilePath);
+
+          return results.builder();
+        }).then(function(results) {
+          var awk = results.subject;
+          // rebuild only 0 files
+          expect(awk.processString.callCount).to.equal(0);
+          someDirPath = awk.inputPaths[0] + '/fooo/';
+          fs.mkdir(someDirPath);
+          return results.builder();
+        }).then(function(results) {
+          var awk = results.subject;
+          // rebuild, but no changes (build nothing);
+          expect(awk.processString.callCount).to.equal(0);
+
+          originalJSFilePath = awk.inputPaths[0] + '/a/foo.js';
+          originalJSFileContent = fs.readFileSync(originalJSFilePath);
+          fs.writeFileSync(originalJSFilePath, 'OMG');
+
+          return results.builder();
+        }).then(function(results) {
+          var awk = results.subject;
+          // rebuild, but no changes (build nothing);
+          expect(awk.processString.callCount).to.equal(1);
+          expect(fs.readFileSync(results.directory + '/a/foo.OMG', 'UTF-8')).to.eql('BZT');
+
+          return results.builder();
+        }).finally(function() {
+          try {
+            fs.writeFileSync(originalFilePath, originalFileContent);
+          } catch(e) { }
+          try {
+            fs.rmdir(someDirPath);
+          } catch(e) { }
+
+          try {
+            fs.writeFileSync(originalJSFilePath, originalJSFileContent);
+          } catch(e) { }
+        });
+      });
+
+    });
+  });
+
+  it('targetExtension work for no extensions', function() {
+    var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+      sinon.spy(awk, 'processString');
+      return awk;
+    });
+
+    return builder('dir', {
+      targetExtension: 'foo',
+      extensions: []
+    }).then(function(results) {
+      var awk = results.subject;
+
+      expect(read(results.directory + '/a/README.md')).
+        to.equal('Nicest cats in need of homes');
+      expect(read(results.directory + '/a/foo.js')).
+        to.equal('Nicest dogs in need of homes');
+
+      expect(awk.processString.callCount).to.equal(0);
+    });
+  });
+
+  it('targetExtension work for single extensions', function() {
+    var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+      sinon.spy(awk, 'processString');
+      return awk;
+    });
+
+    return builder('dir', {
+      targetExtension: 'foo',
+      extensions: ['js']
+    }).then(function(results) {
+      var awk = results.subject;
+
+      expect(read(results.directory + '/a/README.md')).
+          to.equal('Nicest cats in need of homes');
+      expect(read(results.directory + '/a/foo.foo')).
+          to.equal('Avprfg qbtf va arrq bs ubzrf');
+
+      expect(awk.processString.callCount).to.equal(2);
+    });
+  });
+
+  it('targetExtension work for multiple extensions', function() {
+    var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+      sinon.spy(awk, 'processString');
+      return awk;
+    });
+
+    return builder('dir', {
+      targetExtension: 'foo',
+      extensions: ['js','md']
+    }).then(function(results) {
+      var awk = results.subject;
+
+      expect(read(results.directory + '/a/README.foo')).
+          to.equal('Avprfg pngf va arrq bs ubzrf');
+      expect(read(results.directory + '/a/foo.foo')).
+          to.equal('Avprfg qbtf va arrq bs ubzrf');
+
+      expect(awk.processString.callCount).to.equal(3);
+    });
+  });
+
   it('should processString only when canProcessFile returns true',
       function() {
 
@@ -123,7 +313,8 @@ describe('Filter', function() {
     return builder('dir', {
       glob: '**/*.md',
       search: 'dogs',
-      replace: 'cats'
+      replace: 'cats',
+      targetExtension: 'foo'
     }).then(function(results) {
       var awk = results.subject;
 
@@ -155,7 +346,6 @@ describe('Filter', function() {
   });
 
   it('purges cache', function() {
-
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       return awk;
     });
