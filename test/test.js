@@ -3,8 +3,11 @@
 var chai = require('chai');
 var expect = chai.expect;
 var chaiAsPromised = require('chai-as-promised');
+var sinonChai = require('sinon-chai');
 
+chai.should();
 chai.use(chaiAsPromised);
+chai.use(sinonChai);
 
 var sinon = require('sinon');
 var broccoliTestHelpers = require('broccoli-test-helpers');
@@ -235,7 +238,44 @@ describe('Filter', function() {
           } catch(e) { }
         });
       });
+    });
 
+    it('it preserves mtimes if neither content did not actually change', function() {
+      var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+        sinon.spy(awk, 'processString');
+        return awk;
+      });
+
+      var stat;
+      var filePath;
+
+      return builder('dir', {
+        extensions: ['md']
+      }).then(function(results) {
+        var awk = results.subject;
+        // first time, build everything
+        expect(awk.processString.callCount).to.equal(1);
+        awk.processString.callCount = 0;
+        filePath = awk.inputPaths[0] + '/a/README.md';
+
+        fs.writeFileSync(filePath, fs.readFileSync(filePath));
+        stat = fs.statSync(filePath);
+
+        return results.builder();
+      }).then(function(results) {
+        var awk = results.subject;
+        var afterRebuildStat = fs.statSync(filePath);
+
+        awk.processString.should.have.been.calledOnce;
+        // rebuild changed file
+        awk.processString.should.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
+
+        // although file was "rebuilt", no observable difference can be observed
+
+        expect(stat.mode).to.equal(afterRebuildStat.mode);
+        expect(stat.size).to.equal(afterRebuildStat.size);
+        expect(stat.mtime.getTime()).to.equal(afterRebuildStat.mtime.getTime());
+      });
     });
   });
 

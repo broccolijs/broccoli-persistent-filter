@@ -83,18 +83,20 @@ Filter.prototype.build = function() {
       case 'rmdir':  return fs.rmdirSync(outputPath);
       case 'unlink': return fs.unlinkSync(outputPath);
       case 'change':
-        fs.unlinkSync(outputFilePath);
-        return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath);
+        return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true);
       case 'create':
-        return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath);
+        return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false);
     }
   }, this);
 };
 
-Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath) {
+Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange) {
   if (this.canProcessFile(relativePath)) {
-    return this.processAndCacheFile(srcDir, destDir, entry);
+    return this.processAndCacheFile(srcDir, destDir, entry, isChange);
   } else {
+    if (isChange) {
+      fs.unlinkSync(outputPath);
+    }
     var srcPath = srcDir + '/' + relativePath;
     return symlinkOrCopySync(srcPath, outputPath);
   }
@@ -158,13 +160,13 @@ Filter.prototype.getDestFilePath = function(relativePath) {
   return null;
 };
 
-Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry) {
+Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, isChange) {
   var filter = this;
   var relativePath = entry.relativePath;
 
   return Promise.resolve().
       then(function asyncProcessFile() {
-        return filter.processFile(srcDir, destDir, relativePath);
+        return filter.processFile(srcDir, destDir, relativePath, isChange);
       }).
       then(undefined,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
@@ -184,7 +186,7 @@ function invoke(context, fn, args) {
   });
 }
 
-Filter.prototype.processFile = function(srcDir, destDir, relativePath) {
+Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange) {
   var filter = this;
   var inputEncoding = this.inputEncoding;
   var outputEncoding = this.outputEncoding;
@@ -210,6 +212,16 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath) {
 
     outputPath = destDir + '/' + outputPath;
 
+    if (isChange) {
+      var isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
+      if (isSame) {
+        this._debug('[change:%s] but was the same, skipping', relativePath, isSame);
+        return;
+      } else {
+        this._debug('[change:%s] but was NOT the same, writing new file', relativePath);
+      }
+    }
+
     try {
       fs.writeFileSync(outputPath, outputString, {
         encoding: outputEncoding
@@ -224,7 +236,7 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath) {
     }
 
     return outputString;
-  });
+  }.bind(this));
 };
 
 Filter.prototype.processString = function(/* contents, relativePath */) {
