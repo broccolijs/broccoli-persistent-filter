@@ -240,7 +240,46 @@ describe('Filter', function() {
       });
     });
 
-    it('it preserves mtimes if neither content did not actually change', function() {
+    it('handles renames', function() {
+      var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+        sinon.spy(awk, 'processString');
+        return awk;
+      });
+
+      var filePathPrevious;
+      var filePathNext;
+
+      return builder('dir', {
+        extensions: ['md'],
+        targetExtension: ['foo.md']
+      }).then(function(results) {
+        var awk = results.subject;
+        // first time, build everything
+        expect(awk.processString.callCount).to.equal(1);
+        awk.processString.callCount = 0;
+
+        filePathPrevious = awk.inputPaths[0] + '/a/README.md';
+        filePathNext = awk.inputPaths[0] + '/a/README-renamed.md';
+
+        fs.writeFileSync(filePathNext, fs.readFileSync(filePathPrevious));
+        fs.unlinkSync(filePathPrevious);
+
+        return results.builder();
+      }).then(function(results) {
+        expect(results.files).to.eql([
+          'a/',
+          'a/README-renamed.foo.md',
+          'a/bar/',
+          'a/bar/bar.js',
+          'a/foo.js' 
+        ]);
+      }).finally(function() {
+        fs.writeFileSync(filePathPrevious, fs.readFileSync(filePathNext));
+        fs.unlinkSync(filePathNext);
+      });
+    });
+
+    it(' preserves mtimes if neither content did not actually change', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
         sinon.spy(awk, 'processString');
         return awk;
