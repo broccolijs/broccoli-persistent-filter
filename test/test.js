@@ -1,6 +1,7 @@
 'use strict';
 
 var chai = require('chai');
+var path = require('path');
 var expect = chai.expect;
 var chaiAsPromised = require('chai-as-promised');
 var sinonChai = require('sinon-chai');
@@ -543,7 +544,7 @@ describe('Filter', function() {
     inherits(F, Filter);
 
     F.prototype.baseDir = function() {
-      return '../';
+      return path.join(__dirname, '../');
     };
 
     beforeEach(function() {

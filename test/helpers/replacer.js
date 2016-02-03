@@ -1,6 +1,7 @@
 'use strict';
 
 var inherits = require('util').inherits;
+var path = require('path');
 var Filter = require('../../');
 var minimatch = require('minimatch');
 
@@ -34,5 +35,5 @@ ReplaceFilter.prototype.processString = function(contents/*, relativePath*/) {
 };
 
 ReplaceFilter.prototype.baseDir = function() {
-  return '../';
+  return path.join(__dirname, '../../');
 };
