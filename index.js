@@ -244,3 +244,7 @@ Filter.prototype.processString = function(/* contents, relativePath */) {
       'When subclassing broccoli-persistent-filter you must implement the ' +
       '`processString()` method.');
 };
+
+Filter.prototype.postProcess = function(result /*, relativePath */) {
+  return result;
+};

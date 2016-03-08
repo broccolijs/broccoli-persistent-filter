@@ -22,9 +22,15 @@ class Filter {
    * Abstract method `processString`: must be implemented on subclasses of
    * Filter.
    *
-   * The return value is written as the contents of the output file
+   * The resolved return value can either be an object or a string.
+   *
+   * An object can be used to cache additional meta-data that is not part of the
+   * final output. When an object is returned, the `.output` property of that
+   * object is used as the resulting file contents.
+   *
+   * When a string is returned it is used as the file contents.
    */
-  abstract processString(contents: string, relativePath: string): string;
+  abstract processString(contents: string, relativePath: string): {string | object };
 
   /**
    * Virtual method `getDestFilePath`: determine whether the source file should
@@ -39,6 +45,23 @@ class Filter {
    * extension in the list is replaced with the `targetExtension` option's value.
    */
   virtual getDestFilePath(relativePath: string): string;
+
+  /**
+   * Method `postProcess`: may be implemented on subclasses of
+   * Filter.
+   *
+   * This method can be used in subclasses to do processing on the results of
+   * each files `processString` method.
+   *
+   * A common scenario for this is linting plugins, where on initial build users
+   * expect to get console warnings for lint errors, but we do not want to re-lint
+   * each file on every boot (since most of them will be able to be served from the
+   * cache).
+   *
+   * The `.output` property of the return value is used as the emitted file contents.
+   */
+  postProcess(results: object, relativePath: string): object
+
 }
 ```
 

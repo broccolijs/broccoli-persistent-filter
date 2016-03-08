@@ -23,6 +23,7 @@ var path = require('path');
 var Filter = require('../');
 var rimraf = require('rimraf').sync;
 var os = require('os');
+var Promise = require('rsvp').Promise;
 
 var ReplaceFilter = require('./helpers/replacer');
 var IncompleteFilter = require('./helpers/incomplete');
@@ -121,6 +122,7 @@ describe('Filter', function() {
     it('calls processString only if work is needed', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
         sinon.spy(awk, 'processString');
+        sinon.spy(awk, 'postProcess');
         return awk;
       });
       var originalFileContent;
@@ -130,12 +132,15 @@ describe('Filter', function() {
         var awk = results.subject;
         // first time, build everything
         expect(awk.processString.callCount).to.equal(3);
+        expect(awk.postProcess.callCount).to.equal(3);
         awk.processString.callCount = 0;
+        awk.postProcess.callCount = 0;
         return results.builder();
       }).then(function(results) {
         var awk = results.subject;
         // rebuild, but no changes (build nothing);
         expect(awk.processString.callCount).to.equal(0);
+        expect(awk.postProcess.callCount).to.equal(0);
 
         originalFilePath = awk.inputPaths[0] + '/a/README.md';
         originalFileContent = fs.readFileSync(originalFilePath);
@@ -146,6 +151,9 @@ describe('Filter', function() {
         var awk = results.subject;
         // rebuild only 1 file
         expect(awk.processString.callCount).to.equal(1);
+        expect(awk.postProcess.callCount).to.equal(1);
+
+        awk.postProcess.callCount = 0;
         awk.processString.callCount = 0;
 
         fs.unlinkSync(originalFilePath);
@@ -155,6 +163,9 @@ describe('Filter', function() {
         var awk = results.subject;
         // rebuild only 0 files
         expect(awk.processString.callCount).to.equal(0);
+        expect(awk.postProcess.callCount).to.equal(0);
+
+        awk.postProcess.callCount = 0;
       }).finally(function() {
         fs.writeFileSync(originalFilePath, originalFileContent);
       });
@@ -272,7 +283,7 @@ describe('Filter', function() {
           'a/README-renamed.foo.md',
           'a/bar/',
           'a/bar/bar.js',
-          'a/foo.js' 
+          'a/foo.js'
         ]);
       }).finally(function() {
         fs.writeFileSync(filePathPrevious, fs.readFileSync(filePathNext));
@@ -404,6 +415,40 @@ describe('Filter', function() {
           to.equal('Nicest dogs in need of homes');
       expect(awk.processString.callCount).to.equal(1);
     });
+  });
+
+  it('should processString and postProcess', function() {
+
+    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+      awk.postProcess = function(object) {
+        expect(object.output).to.exist;
+
+        object.output = object.output + 0x00 + 'POST_PROCESSED!!';
+
+        return object;
+      };
+
+      sinon.spy(awk, 'processString');
+      sinon.spy(awk, 'postProcess');
+
+      return awk;
+    });
+
+    return builder('dir', {
+      search: 'dogs',
+      replace: 'cats'
+    })
+      .then(function(results) {
+        var awk = results.subject;
+
+        expect(read(results.directory + '/a/README.md')).
+          to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        expect(read(results.directory + '/a/foo.js')).
+          to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+
+        expect(awk.processString.callCount).to.equal(3);
+        expect(awk.postProcess.callCount).to.equal(3);
+      });
   });
 
   it('complains if canProcessFile is true but getDestFilePath is null',
@@ -621,6 +666,71 @@ describe('Filter', function() {
           'a/foo.js'
         ]);
       });
+    });
+
+    it('calls postProcess for persistent cache hits (work is not needed)', function() {
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+                                                                    'process-cache-string-tests');
+      rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
+
+      var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+        awk.postProcess = function(result) {
+          expect(result.output).to.exist;
+          return result;
+        };
+
+        sinon.spy(awk, 'processString');
+        sinon.spy(awk, 'postProcess');
+
+        return awk;
+      });
+
+      return builder('dir', { persist: true })
+        .then(function(results) {
+          var awk = results.subject;
+          // first time, build everything
+          expect(awk.processString.callCount).to.equal(3);
+          expect(awk.postProcess.callCount).to.equal(3);
+        })
+        .then(function() {
+          return builder('dir', { persist: true });
+        })
+        .then(function(results) {
+          var awk = results.subject;
+          // second instance, hits cache
+          expect(awk.processString.callCount).to.equal(0);
+          expect(awk.postProcess.callCount).to.equal(3);
+        });
+    });
+
+    it('postProcess return value is not used', function() {
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+                                                                    'process-cache-string-tests');
+      rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
+
+      var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+        awk.postProcess = function(result) {
+          expect(result.output).to.exist;
+
+          result.output = result.output + 0x00 + 'POST_PROCESSED!!';
+
+          return Promise.resolve(result);
+        };
+
+        return awk;
+      });
+
+      return builder('dir', { persist: true })
+        .then(function(results) {
+          // do nothing, just kicked off to warm the persistent cache
+        })
+        .then(function() {
+          return builder('dir', { persist: true });
+        })
+        .then(function(results) {
+          expect(read(results.directory + '/a/foo.js')).
+            to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        });
     });
   });
 
