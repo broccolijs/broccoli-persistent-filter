@@ -73,7 +73,7 @@ Filter.prototype.build = function() {
     var operation = patch[0];
     var relativePath = patch[1];
     var entry = patch[2];
-    var outputPath = destDir + '/' + (this.getDestFilePath(relativePath) || relativePath);
+    var outputPath = destDir + '/' + (Filter.prototype.getDestFilePath.call(this, relativePath) || relativePath);
     var outputFilePath = outputPath;
 
     this._debug('[operation:%s] %s', operation, relativePath);
