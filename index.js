@@ -143,7 +143,7 @@ Filter.prototype.build = function() {
         var operation = patch[0];
         var relativePath = patch[1];
         var entry = patch[2];
-        var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath) || relativePath);
+        var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath, entry) || relativePath);
         var outputFilePath = outputPath;
 
         plugin._logger.debug('[operation:%s] %s', operation, relativePath);
@@ -181,7 +181,7 @@ Filter.prototype.build = function() {
 };
 
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, instrumentation) {
-  if (this.canProcessFile(relativePath)) {
+  if (this.canProcessFile(relativePath, entry)) {
     instrumentation.processed++;
     return this.processAndCacheFile(srcDir, destDir, entry, isChange, instrumentation);
   } else {
@@ -230,11 +230,27 @@ Filter.prototype.cacheKeyProcessString = function(string, relativePath) {
 };
 
 Filter.prototype.canProcessFile =
-    function canProcessFile(relativePath) {
-  return !!this.getDestFilePath(relativePath);
+    function canProcessFile(relativePath, entry) {
+  return !!this.getDestFilePath(relativePath, entry);
 };
 
-Filter.prototype.getDestFilePath = function(relativePath) {
+Filter.prototype.isDirectory = function(relativePath, entry) {
+  if (this.inputPaths === undefined) {
+    return false;
+  }
+
+  var srcDir = this.inputPaths[0];
+  var path = srcDir + '/' + relativePath;
+
+  return (entry || fs.lstatSync(path)).isDirectory();
+};
+
+Filter.prototype.getDestFilePath = function(relativePath, entry) {
+  // NOTE: relativePath may have been moved or unlinked
+  if (this.isDirectory(relativePath, entry)) {
+    return null;
+  }
+
   if (this.extensions == null) {
     return relativePath;
   }
@@ -258,7 +274,7 @@ Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, isChange
 
   return Promise.resolve().
       then(function asyncProcessFile() {
-        return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation);
+        return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation, entry);
       }).
       then(undefined,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
@@ -278,7 +294,7 @@ function invoke(context, fn, args) {
   });
 }
 
-Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange, instrumentation) {
+Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange, instrumentation, entry) {
   var filter = this;
   var inputEncoding = this.inputEncoding;
   var outputEncoding = this.outputEncoding;
@@ -296,7 +312,7 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
 
   return string.then(function asyncOutputFilteredFile(outputString) {
     instrumentation.processStringTime += nanosecondsSince(processStringStart);
-    var outputPath = filter.getDestFilePath(relativePath);
+    var outputPath = filter.getDestFilePath(relativePath, entry);
 
     if (outputPath == null) {
       throw new Error('canProcessFile("' + relativePath +
