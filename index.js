@@ -210,7 +210,26 @@ Filter.prototype.canProcessFile =
   return !!this.getDestFilePath(relativePath);
 };
 
+Filter.prototype.isDirectory = function(relativePath) {
+  if (this.inputPaths === undefined) {
+    return false;
+  }
+
+  var srcDir = this.inputPaths[0];
+  var path = srcDir + '/' + relativePath;
+
+  return fs.lstatSync(path).isDirectory();
+};
+
 Filter.prototype.getDestFilePath = function(relativePath) {
+  // NOTE: relativePath may have been moved or unlinked
+  try {
+    if (this.isDirectory(relativePath)) {
+      return null;
+    }
+  } catch(e) {
+  }
+
   if (this.extensions == null) {
     return relativePath;
   }
