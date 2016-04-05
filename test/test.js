@@ -102,6 +102,24 @@ describe('Filter', function() {
     expect(filter.canProcessFile('twerp.rs')).to.equal(false);
   });
 
+  it('getDestFilePath returns null for directories when extensions is null', function() {
+    var inputPath = path.join(rootFixturePath, 'a/dir');
+    var filter = MyFilter(inputPath, { extensions: null });
+    filter.inputPaths = [inputPath];
+
+    expect(filter.getDestFilePath('a/bar')).to.equal(null);
+    expect(filter.getDestFilePath('a/bar/bar.js')).to.equal('a/bar/bar.js');
+  });
+
+  it('getDestFilePath returns null for directories with matching extensions', function() {
+    var inputPath = path.join(rootFixturePath, 'dir-with-extensions');
+    var filter = MyFilter(inputPath, { extensions: ['js'] });
+    filter.inputPaths = [inputPath];
+
+    expect(filter.getDestFilePath('a/loader.js')).to.equal(null);
+    expect(filter.getDestFilePath('a/loader.js/loader.js')).to.equal('a/loader.js/loader.js');
+  });
+
   it('replaces matched extension with targetExtension by default', function() {
 
     var filter = MyFilter('.', {
