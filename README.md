@@ -76,6 +76,8 @@ class Filter {
 * `outputEncoding`: The character encoding used for writing output files after
   processing (default: `'utf8'`). For binary files, pass `null` and return a
   `Buffer` object from `processString`.
+* `ignoreEmptyFiles` boolean flag to not include any empty (regular) files in the resulting
+  transform node. If you return an empty string as output from `processString`, the file will not be included in the resulting node. Empty directories are not affected.
 * `name`, `annotation`: Same as
   [broccoli-plugin](https://github.com/broccolijs/broccoli-plugin#new-plugininputnodes-options);
   see there.
