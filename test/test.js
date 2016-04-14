@@ -580,30 +580,6 @@ describe('Filter', function() {
     })
   });
 
-  // it('it drops empty files on rebuild when ignoreEmptyFiles is set to true', function () {
-  //   var fileForChange = path.join(fixturePath, 'dir', 'a', 'dog.js');
-  //   var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
-  //     return awk;
-  //   });
-
-  //   return builder('dir', {
-  //     glob: '**/*.js',
-  //     search: 'dog',
-  //     replace: '',
-  //     ignoreEmptyFiles: true
-  //   }).then(function (results) {
-  //     expect(existsSync(fileForChange)).to.be.true;
-
-  //     write(fileForChange, 'dog');
-
-  //     expect(existsSync(fileForChange)).to.be.true;
-
-  //     return results.builder();
-  //   }).then(function (results) {
-  //     expect(results.files).to.not.contain('a/dog.js');
-  //   })
-  // });
-
   function existsSync(path) {
     // node is apparently deprecating this function..
     try {
