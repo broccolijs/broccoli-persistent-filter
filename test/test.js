@@ -131,8 +131,8 @@ describe('Filter', function() {
       return builder('dir').then(function(results) {
         var awk = results.subject;
         // first time, build everything
-        expect(awk.processString.callCount).to.equal(3);
-        expect(awk.postProcess.callCount).to.equal(3);
+        expect(awk.processString.callCount).to.equal(5);
+        expect(awk.postProcess.callCount).to.equal(5);
         awk.processString.callCount = 0;
         awk.postProcess.callCount = 0;
         return results.builder();
@@ -189,7 +189,7 @@ describe('Filter', function() {
         }).then(function(results) {
           var awk = results.subject;
           // first time, build everything
-          expect(awk.processString.callCount).to.equal(2);
+          expect(awk.processString.callCount).to.equal(3);
           awk.processString.callCount = 0;
           return results.builder();
         }).then(function(results) {
@@ -283,6 +283,8 @@ describe('Filter', function() {
           'a/README-renamed.foo.md',
           'a/bar/',
           'a/bar/bar.js',
+          'a/bar/empty',
+          'a/dog.js',
           'a/foo.js'
         ]);
       }).finally(function() {
@@ -367,8 +369,8 @@ describe('Filter', function() {
           to.equal('Nicest cats in need of homes');
       expect(read(results.directory + '/a/foo.foo')).
           to.equal('Avprfg qbtf va arrq bs ubzrf');
-
-      expect(awk.processString.callCount).to.equal(2);
+      // a/foo.js, a/dog.js, and a/bar/bar.js will be processed
+      expect(awk.processString.callCount).to.equal(3);
     });
   });
 
@@ -389,7 +391,7 @@ describe('Filter', function() {
       expect(read(results.directory + '/a/foo.foo')).
           to.equal('Avprfg qbtf va arrq bs ubzrf');
 
-      expect(awk.processString.callCount).to.equal(3);
+      expect(awk.processString.callCount).to.equal(4);
     });
   });
 
@@ -446,8 +448,8 @@ describe('Filter', function() {
         expect(read(results.directory + '/a/foo.js')).
           to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
 
-        expect(awk.processString.callCount).to.equal(3);
-        expect(awk.postProcess.callCount).to.equal(3);
+        expect(awk.processString.callCount).to.equal(5);
+        expect(awk.postProcess.callCount).to.equal(5);
       });
   });
 
@@ -536,6 +538,71 @@ describe('Filter', function() {
       write(fileForChange, 'Nicest cats in need of homes');
     });
   });
+
+  it('it drops empty files on first build when ignoreEmptyFiles is set to true', function () {
+    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+      return awk;
+    });
+
+    return builder('dir', {
+      glob: '**/*.md',
+      search: 'dogs',
+      replace: 'cats',
+      ignoreEmptyFiles: true
+    }).then(function (results) {
+      expect(results.files).to.not.contain('a/bar/empty');
+    })
+  });
+
+  it('it drops empty files on rebuild when ignoreEmptyFiles is set to true', function () {
+    var fileForChange = path.join(fixturePath, 'dir', 'a', 'dog.js');
+    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+      return awk;
+    });
+
+    return builder('dir', {
+      glob: '**/*.js',
+      search: 'woof',
+      replace: '',
+      ignoreEmptyFiles: true
+    }).then(function (results) {
+      expect(existsSync(fileForChange)).to.be.true;
+
+      write(fileForChange, 'woof');
+
+      expect(existsSync(fileForChange)).to.be.true;
+      return results.builder();
+    }).then(function (results) {
+      expect(results.files).to.not.contain('a/dog.js');
+    }).finally(function () {
+      // clean up after test, restore fixture
+      write(fileForChange, 'meow');
+    })
+  });
+
+  // it('it drops empty files on rebuild when ignoreEmptyFiles is set to true', function () {
+  //   var fileForChange = path.join(fixturePath, 'dir', 'a', 'dog.js');
+  //   var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+  //     return awk;
+  //   });
+
+  //   return builder('dir', {
+  //     glob: '**/*.js',
+  //     search: 'dog',
+  //     replace: '',
+  //     ignoreEmptyFiles: true
+  //   }).then(function (results) {
+  //     expect(existsSync(fileForChange)).to.be.true;
+
+  //     write(fileForChange, 'dog');
+
+  //     expect(existsSync(fileForChange)).to.be.true;
+
+  //     return results.builder();
+  //   }).then(function (results) {
+  //     expect(results.files).to.not.contain('a/dog.js');
+  //   })
+  // });
 
   function existsSync(path) {
     // node is apparently deprecating this function..
@@ -663,6 +730,8 @@ describe('Filter', function() {
           'a/README.md',
           'a/bar/',
           'a/bar/bar.js',
+          'a/bar/empty',
+          'a/dog.js',
           'a/foo.js'
         ]);
       });
@@ -689,8 +758,8 @@ describe('Filter', function() {
         .then(function(results) {
           var awk = results.subject;
           // first time, build everything
-          expect(awk.processString.callCount).to.equal(3);
-          expect(awk.postProcess.callCount).to.equal(3);
+          expect(awk.processString.callCount).to.equal(5);
+          expect(awk.postProcess.callCount).to.equal(5);
         })
         .then(function() {
           return builder('dir', { persist: true });
@@ -699,7 +768,7 @@ describe('Filter', function() {
           var awk = results.subject;
           // second instance, hits cache
           expect(awk.processString.callCount).to.equal(0);
-          expect(awk.postProcess.callCount).to.equal(3);
+          expect(awk.postProcess.callCount).to.equal(5);
         });
     });
 

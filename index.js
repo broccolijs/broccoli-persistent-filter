@@ -48,6 +48,7 @@ function Filter(inputTree, options) {
     if (options.targetExtension != null) this.targetExtension = options.targetExtension;
     if (options.inputEncoding != null)   this.inputEncoding = options.inputEncoding;
     if (options.outputEncoding != null)  this.outputEncoding = options.outputEncoding;
+    if (options.ignoreEmptyFiles != null) this.ignoreEmptyFiles = options.ignoreEmptyFiles;
     if (options.persist) {
       this.processor.setStrategy(require('./lib/strategies/persistent'));
     }
@@ -63,6 +64,17 @@ Filter.prototype.build = function() {
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
   var entries = walkSync.entries(srcDir);
+  if (this.ignoreEmptyFiles) {
+    var nonEmptyEntries = [];
+    // use for loop instead of Array#filter for perf concerns
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      if (entry.size) {
+        nonEmptyEntries.push(entry);
+      }
+    }
+    entries = nonEmptyEntries;
+  }
   var nextTree = new FSTree.fromEntries(entries);
   var currentTree = this.currentTree;
 
@@ -211,6 +223,13 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange)
     }
 
     outputPath = destDir + '/' + outputPath;
+
+    if (this.ignoreEmptyFiles && !outputString) {
+      if (isChange) {
+        fs.unlinkSync(outputPath);
+      }
+      return;
+    }
 
     if (isChange) {
       var isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
