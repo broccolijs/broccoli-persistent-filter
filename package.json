@@ -51,7 +51,7 @@
     "coveralls": "^2.11.4",
     "istanbul": "^0.4.2",
     "minimatch": "^3.0.0",
-    "mocha": "^2.2.5",
+    "mocha": "^2.5.0",
     "rimraf": "^2.4.2",
     "sinon": "^1.15.3",
     "sinon-chai": "^2.8.0"
