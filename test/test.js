@@ -193,7 +193,7 @@ describe('Filter', function() {
           originalFileContent = fs.readFileSync(originalFilePath);
           fs.writeFileSync(originalFilePath, 'OMG');
 
-          expect(fs.existsSync(results.directory + '/a/foo.OMG')).to.be.true;
+          expect(file(results.directory + '/a/foo.OMG')).to.exist;
 
           return results.builder();
         }).then(function(results) {
@@ -461,28 +461,24 @@ describe('Filter', function() {
       search: 'dogs',
       replace: 'cats'
     }).then(function(results) {
-      expect(existsSync(fileForRemoval)).to.be.true;
+      expect(file(fileForRemoval)).to.exist;
       rimraf(fileForRemoval);
 
-      expect(existsSync(fileForRemoval)).to.be.false;
-      expect(existsSync(results.directory + '/a/README.md')).to.be.true;
+      expect(file(fileForRemoval)).to.not.exist;
+      expect(file(results.directory + '/a/README.md')).to.exist;
 
       return results.builder();
     }).then(function(results) {
-      expect(existsSync(results.directory + '/a/README.md'),
-             'OUTPUT: a/foo.js should NO LONGER be present').to.be.false;
-
-      expect(existsSync(fileForRemoval)).to.be.false;
+      expect(file(results.directory + '/a/README.md')).to.not.exist;
+      expect(file(fileForRemoval)).to.not.exist;
       return results;
     }).finally(function() {
       write(fileForRemoval, 'Nicest cats in need of homes');
     }).then(function(results) {
-      expect(existsSync(fileForRemoval)).to.be.true;
-
+      expect(file(fileForRemoval)).to.exist;
       return results.builder();
     }).then(function(results) {
-      expect(existsSync(results.directory + '/a/foo.js'),
-             'OUTPUT: a/foo.js should be once again present').to.be.true;
+      expect(file(results.directory + '/a/foo.js')).to.exist;
     });
   });
 
@@ -498,33 +494,23 @@ describe('Filter', function() {
       search: 'dogs',
       replace: 'cats'
     }).then(function(results) {
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
 
       write(fileForChange, 'such changes');
 
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
 
       return results.builder();
     }).then(function() {
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
 
       write(fileForChange, 'such changes');
 
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
     }).then(function() {
       write(fileForChange, 'Nicest cats in need of homes');
     });
   });
-
-  function existsSync(path) {
-    // node is apparently deprecating this function..
-    try {
-      fs.lstatSync(path);
-      return true;
-    } catch(e) {
-      return false;
-    }
-  }
 
   it('does not overwrite core options if they are not present', function() {
     function F(inputTree, options) {
