@@ -1,7 +1,6 @@
 'use strict';
 
 var chai = require('chai');
-var path = require('path');
 var expect = chai.expect;
 var chaiAsPromised = require('chai-as-promised');
 var sinonChai = require('sinon-chai');
