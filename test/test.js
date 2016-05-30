@@ -424,16 +424,15 @@ describe('Filter', function() {
     return builder('dir', {
       search: 'dogs',
       replace: 'cats'
-    })
-      .then(function(results) {
-        var awk = results.subject;
+    }).then(function(results) {
+      var awk = results.subject;
 
-        expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
-        expect(file(results.directory + '/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
 
-        expect(awk.processString.callCount).to.equal(3);
-        expect(awk.postProcess.callCount).to.equal(3);
-      });
+      expect(awk.processString.callCount).to.equal(3);
+      expect(awk.postProcess.callCount).to.equal(3);
+    });
   });
 
   it('complains if canProcessFile is true but getDestFilePath is null',
@@ -670,22 +669,19 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persist: true })
-        .then(function(results) {
-          var awk = results.subject;
-          // first time, build everything
-          expect(awk.processString.callCount).to.equal(3);
-          expect(awk.postProcess.callCount).to.equal(3);
-        })
-        .then(function() {
-          return builder('dir', { persist: true });
-        })
-        .then(function(results) {
-          var awk = results.subject;
-          // second instance, hits cache
-          expect(awk.processString.callCount).to.equal(0);
-          expect(awk.postProcess.callCount).to.equal(3);
-        });
+      return builder('dir', { persist: true }).then(function(results) {
+        var awk = results.subject;
+        // first time, build everything
+        expect(awk.processString.callCount).to.equal(3);
+        expect(awk.postProcess.callCount).to.equal(3);
+      }).then(function() {
+        return builder('dir', { persist: true });
+      }).then(function(results) {
+        var awk = results.subject;
+        // second instance, hits cache
+        expect(awk.processString.callCount).to.equal(0);
+        expect(awk.postProcess.callCount).to.equal(3);
+      });
     });
 
     it('postProcess return value is not used', function() {
@@ -705,16 +701,13 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persist: true })
-        .then(function(results) {
-          // do nothing, just kicked off to warm the persistent cache
-        })
-        .then(function() {
-          return builder('dir', { persist: true });
-        })
-        .then(function(results) {
-          expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
-        });
+      return builder('dir', { persist: true }).then(function(results) {
+        // do nothing, just kicked off to warm the persistent cache
+      }).then(function() {
+        return builder('dir', { persist: true });
+      }).then(function(results) {
+        expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+      });
     });
   });
 
