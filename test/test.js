@@ -290,7 +290,7 @@ describe('Filter', function() {
       });
     });
 
-    it(' preserves mtimes if neither content did not actually change', function() {
+    it('preserves mtimes if neither content did not actually change', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
         sinon.spy(awk, 'processString');
         return awk;
