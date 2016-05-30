@@ -61,8 +61,7 @@ describe('Filter', function() {
     }).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
-  it('throws if called on object which does not a child class of Filter',
-      function() {
+  it('throws if called on object which does not a child class of Filter', function() {
     expect(function() {
       return Filter.call({});
     }).to.throw(TypeError, /abstract class and must be sub-classed/);
@@ -88,8 +87,7 @@ describe('Filter', function() {
     }).to.throw(Error, /must implement/);
   });
 
-  it('processes files with extensions included in `extensions` list by ' +
-     'default', function() {
+  it('processes files with extensions included in `extensions` list by default', function() {
 
    var filter = MyFilter('.', { extensions: ['c', 'cc', 'js']});
 
@@ -99,8 +97,7 @@ describe('Filter', function() {
     expect(filter.canProcessFile('twerp.rs')).to.equal(false);
   });
 
-  it('replaces matched extension with targetExtension by default',
-      function() {
+  it('replaces matched extension with targetExtension by default', function() {
 
     var filter = MyFilter('.', {
       extensions: ['c', 'cc', 'js'],
@@ -382,8 +379,7 @@ describe('Filter', function() {
     });
   });
 
-  it('should processString only when canProcessFile returns true',
-      function() {
+  it('should processString only when canProcessFile returns true', function() {
 
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       sinon.spy(awk, 'processString');
@@ -435,8 +431,7 @@ describe('Filter', function() {
     });
   });
 
-  it('complains if canProcessFile is true but getDestFilePath is null',
-     function() {
+  it('complains if canProcessFile is true but getDestFilePath is null', function() {
 
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       awk.canProcessFile = function() {
@@ -610,8 +605,7 @@ describe('Filter', function() {
         to.be.equal(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
     });
 
-    it('throws an UnimplementedException if the abstract `baseDir` implementation is used',
-       function() {
+    it('throws an UnimplementedException if the abstract `baseDir` implementation is used', function() {
 
       function F(inputTree, options) {
         Filter.call(this, inputTree, options);
