@@ -30,9 +30,7 @@
   "dependencies": {
     "async-disk-cache": "^1.0.0",
     "blank-object": "^1.0.1",
-    "broccoli-kitchen-sink-helpers": "^0.3.1",
     "broccoli-plugin": "^1.0.0",
-    "copy-dereference": "^1.0.0",
     "debug": "^2.2.0",
     "fs-tree-diff": "^0.4.4",
     "hash-for-dep": "^1.0.2",
@@ -44,7 +42,6 @@
     "walk-sync": "^0.2.2"
   },
   "devDependencies": {
-    "broccoli": "^0.16.3",
     "broccoli-test-helpers": "^0.0.9",
     "chai": "^3.0.0",
     "chai-as-promised": "^5.1.0",
