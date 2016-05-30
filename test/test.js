@@ -538,8 +538,8 @@ describe('Filter', function() {
     }).targetExtension).to.equal('c');
 
     expect(new F('.', {
-      inputEncoding: 'utf8'}
-    ).inputEncoding).to.equal('utf8');
+      inputEncoding: 'utf8'
+    }).inputEncoding).to.equal('utf8');
 
     expect(new F('.', {
       outputEncoding: 'utf8'
