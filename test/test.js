@@ -5,9 +5,12 @@ var path = require('path');
 var expect = chai.expect;
 var chaiAsPromised = require('chai-as-promised');
 var sinonChai = require('sinon-chai');
+var chaiFiles = require('chai-files');
+var file = chaiFiles.file;
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
+chai.use(chaiFiles);
 
 var sinon = require('sinon');
 var broccoliTestHelpers = require('broccoli-test-helpers');
@@ -43,12 +46,6 @@ describe('Filter', function() {
   afterEach(function() {
     cleanupBuilders();
   });
-
-  function read(relativePath, _encoding) {
-    var encoding = _encoding === undefined ? 'utf8' : _encoding;
-
-    return fs.readFileSync(relativePath, encoding);
-  }
 
   function write(relativePath, contents, _encoding) {
     var encoding = _encoding === undefined ? 'utf8' : _encoding;
@@ -341,10 +338,8 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.md')).
-        to.equal('Nicest cats in need of homes');
-      expect(read(results.directory + '/a/foo.js')).
-        to.equal('Nicest dogs in need of homes');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
 
       expect(awk.processString.callCount).to.equal(0);
     });
@@ -362,10 +357,8 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.md')).
-          to.equal('Nicest cats in need of homes');
-      expect(read(results.directory + '/a/foo.foo')).
-          to.equal('Avprfg qbtf va arrq bs ubzrf');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
 
       expect(awk.processString.callCount).to.equal(2);
     });
@@ -383,10 +376,8 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.foo')).
-          to.equal('Avprfg pngf va arrq bs ubzrf');
-      expect(read(results.directory + '/a/foo.foo')).
-          to.equal('Avprfg qbtf va arrq bs ubzrf');
+      expect(file(results.directory + '/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
+      expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
 
       expect(awk.processString.callCount).to.equal(3);
     });
@@ -408,10 +399,8 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.md')).
-          to.equal('Nicest cats in need of homes');
-      expect(read(results.directory + '/a/foo.js')).
-          to.equal('Nicest dogs in need of homes');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
       expect(awk.processString.callCount).to.equal(1);
     });
   });
@@ -440,10 +429,8 @@ describe('Filter', function() {
       .then(function(results) {
         var awk = results.subject;
 
-        expect(read(results.directory + '/a/README.md')).
-          to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
-        expect(read(results.directory + '/a/foo.js')).
-          to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        expect(file(results.directory + '/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
 
         expect(awk.processString.callCount).to.equal(3);
         expect(awk.postProcess.callCount).to.equal(3);
@@ -727,8 +714,7 @@ describe('Filter', function() {
           return builder('dir', { persist: true });
         })
         .then(function(results) {
-          expect(read(results.directory + '/a/foo.js')).
-            to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+          expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
         });
     });
   });
