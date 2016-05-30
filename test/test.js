@@ -6,7 +6,6 @@ var expect = chai.expect;
 var chaiAsPromised = require('chai-as-promised');
 var sinonChai = require('sinon-chai');
 
-chai.should();
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
 
@@ -317,9 +316,9 @@ describe('Filter', function() {
         var awk = results.subject;
         var afterRebuildStat = fs.statSync(filePath);
 
-        awk.processString.should.have.been.calledOnce;
+        expect(awk.processString).to.have.been.calledOnce;
         // rebuild changed file
-        awk.processString.should.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
+        expect(awk.processString).to.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
 
         // although file was "rebuilt", no observable difference can be observed
 
