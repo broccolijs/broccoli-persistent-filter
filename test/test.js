@@ -31,7 +31,7 @@ var IncompleteFilter = require('./helpers/incomplete');
 var MyFilter = require('./helpers/simple');
 var Rot13Filter = require('./helpers/rot13');
 
-var fixturePath = path.join(process.cwd(), 'test', 'fixtures');
+var fixturePath = path.join(__dirname, 'fixtures');
 
 describe('Filter', function() {
   function makeBuilder(plugin, dir, prepSubject) {
