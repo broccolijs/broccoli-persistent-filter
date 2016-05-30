@@ -114,7 +114,7 @@ describe('Filter', function() {
     expect(filter.getDestFilePath('twerp.rs')).to.equal(null);
   });
 
-  describe('on rebuid', function() {
+  describe('on rebuild', function() {
     it('calls processString only if work is needed', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
         sinon.spy(awk, 'processString');
