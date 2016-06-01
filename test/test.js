@@ -1,14 +1,15 @@
 'use strict';
 
 var chai = require('chai');
-var path = require('path');
 var expect = chai.expect;
 var chaiAsPromised = require('chai-as-promised');
 var sinonChai = require('sinon-chai');
+var chaiFiles = require('chai-files');
+var file = chaiFiles.file;
 
-chai.should();
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
+chai.use(chaiFiles);
 
 var sinon = require('sinon');
 var broccoliTestHelpers = require('broccoli-test-helpers');
@@ -30,7 +31,7 @@ var IncompleteFilter = require('./helpers/incomplete');
 var MyFilter = require('./helpers/simple');
 var Rot13Filter = require('./helpers/rot13');
 
-var fixturePath = path.join(process.cwd(), 'test', 'fixtures');
+var fixturePath = path.join(__dirname, 'fixtures');
 
 describe('Filter', function() {
   function makeBuilder(plugin, dir, prepSubject) {
@@ -44,12 +45,6 @@ describe('Filter', function() {
   afterEach(function() {
     cleanupBuilders();
   });
-
-  function read(relativePath, _encoding) {
-    var encoding = _encoding === undefined ? 'utf8' : _encoding;
-
-    return fs.readFileSync(relativePath, encoding);
-  }
 
   function write(relativePath, contents, _encoding) {
     var encoding = _encoding === undefined ? 'utf8' : _encoding;
@@ -66,8 +61,7 @@ describe('Filter', function() {
     }).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
-  it('throws if called on object which does not a child class of Filter',
-      function() {
+  it('throws if called on object which does not a child class of Filter', function() {
     expect(function() {
       return Filter.call({});
     }).to.throw(TypeError, /abstract class and must be sub-classed/);
@@ -93,8 +87,7 @@ describe('Filter', function() {
     }).to.throw(Error, /must implement/);
   });
 
-  it('processes files with extensions included in `extensions` list by ' +
-     'default', function() {
+  it('processes files with extensions included in `extensions` list by default', function() {
 
    var filter = MyFilter('.', { extensions: ['c', 'cc', 'js']});
 
@@ -104,8 +97,7 @@ describe('Filter', function() {
     expect(filter.canProcessFile('twerp.rs')).to.equal(false);
   });
 
-  it('replaces matched extension with targetExtension by default',
-      function() {
+  it('replaces matched extension with targetExtension by default', function() {
 
     var filter = MyFilter('.', {
       extensions: ['c', 'cc', 'js'],
@@ -118,7 +110,7 @@ describe('Filter', function() {
     expect(filter.getDestFilePath('twerp.rs')).to.equal(null);
   });
 
-  describe('on rebuid', function() {
+  describe('on rebuild', function() {
     it('calls processString only if work is needed', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
         sinon.spy(awk, 'processString');
@@ -201,7 +193,7 @@ describe('Filter', function() {
           originalFileContent = fs.readFileSync(originalFilePath);
           fs.writeFileSync(originalFilePath, 'OMG');
 
-          expect(fs.existsSync(results.directory + '/a/foo.OMG')).to.be.true;
+          expect(file(results.directory + '/a/foo.OMG')).to.exist;
 
           return results.builder();
         }).then(function(results) {
@@ -291,7 +283,7 @@ describe('Filter', function() {
       });
     });
 
-    it(' preserves mtimes if neither content did not actually change', function() {
+    it('preserves mtimes if neither content did not actually change', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
         sinon.spy(awk, 'processString');
         return awk;
@@ -317,9 +309,9 @@ describe('Filter', function() {
         var awk = results.subject;
         var afterRebuildStat = fs.statSync(filePath);
 
-        awk.processString.should.have.been.calledOnce;
+        expect(awk.processString).to.have.been.calledOnce;
         // rebuild changed file
-        awk.processString.should.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
+        expect(awk.processString).to.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
 
         // although file was "rebuilt", no observable difference can be observed
 
@@ -342,10 +334,8 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.md')).
-        to.equal('Nicest cats in need of homes');
-      expect(read(results.directory + '/a/foo.js')).
-        to.equal('Nicest dogs in need of homes');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
 
       expect(awk.processString.callCount).to.equal(0);
     });
@@ -363,10 +353,8 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.md')).
-          to.equal('Nicest cats in need of homes');
-      expect(read(results.directory + '/a/foo.foo')).
-          to.equal('Avprfg qbtf va arrq bs ubzrf');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
 
       expect(awk.processString.callCount).to.equal(2);
     });
@@ -384,17 +372,14 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.foo')).
-          to.equal('Avprfg pngf va arrq bs ubzrf');
-      expect(read(results.directory + '/a/foo.foo')).
-          to.equal('Avprfg qbtf va arrq bs ubzrf');
+      expect(file(results.directory + '/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
+      expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
 
       expect(awk.processString.callCount).to.equal(3);
     });
   });
 
-  it('should processString only when canProcessFile returns true',
-      function() {
+  it('should processString only when canProcessFile returns true', function() {
 
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       sinon.spy(awk, 'processString');
@@ -409,10 +394,8 @@ describe('Filter', function() {
     }).then(function(results) {
       var awk = results.subject;
 
-      expect(read(results.directory + '/a/README.md')).
-          to.equal('Nicest cats in need of homes');
-      expect(read(results.directory + '/a/foo.js')).
-          to.equal('Nicest dogs in need of homes');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
       expect(awk.processString.callCount).to.equal(1);
     });
   });
@@ -437,22 +420,18 @@ describe('Filter', function() {
     return builder('dir', {
       search: 'dogs',
       replace: 'cats'
-    })
-      .then(function(results) {
-        var awk = results.subject;
+    }).then(function(results) {
+      var awk = results.subject;
 
-        expect(read(results.directory + '/a/README.md')).
-          to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
-        expect(read(results.directory + '/a/foo.js')).
-          to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
 
-        expect(awk.processString.callCount).to.equal(3);
-        expect(awk.postProcess.callCount).to.equal(3);
-      });
+      expect(awk.processString.callCount).to.equal(3);
+      expect(awk.postProcess.callCount).to.equal(3);
+    });
   });
 
-  it('complains if canProcessFile is true but getDestFilePath is null',
-     function() {
+  it('complains if canProcessFile is true but getDestFilePath is null', function() {
 
     var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
       awk.canProcessFile = function() {
@@ -482,28 +461,24 @@ describe('Filter', function() {
       search: 'dogs',
       replace: 'cats'
     }).then(function(results) {
-      expect(existsSync(fileForRemoval)).to.be.true;
+      expect(file(fileForRemoval)).to.exist;
       rimraf(fileForRemoval);
 
-      expect(existsSync(fileForRemoval)).to.be.false;
-      expect(existsSync(results.directory + '/a/README.md')).to.be.true;
+      expect(file(fileForRemoval)).to.not.exist;
+      expect(file(results.directory + '/a/README.md')).to.exist;
 
       return results.builder();
     }).then(function(results) {
-      expect(existsSync(results.directory + '/a/README.md'),
-             'OUTPUT: a/foo.js should NO LONGER be present').to.be.false;
-
-      expect(existsSync(fileForRemoval)).to.be.false;
+      expect(file(results.directory + '/a/README.md')).to.not.exist;
+      expect(file(fileForRemoval)).to.not.exist;
       return results;
     }).finally(function() {
       write(fileForRemoval, 'Nicest cats in need of homes');
     }).then(function(results) {
-      expect(existsSync(fileForRemoval)).to.be.true;
-
+      expect(file(fileForRemoval)).to.exist;
       return results.builder();
     }).then(function(results) {
-      expect(existsSync(results.directory + '/a/foo.js'),
-             'OUTPUT: a/foo.js should be once again present').to.be.true;
+      expect(file(results.directory + '/a/foo.js')).to.exist;
     });
   });
 
@@ -519,33 +494,23 @@ describe('Filter', function() {
       search: 'dogs',
       replace: 'cats'
     }).then(function(results) {
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
 
       write(fileForChange, 'such changes');
 
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
 
       return results.builder();
     }).then(function() {
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
 
       write(fileForChange, 'such changes');
 
-      expect(existsSync(fileForChange)).to.be.true;
+      expect(file(fileForChange)).to.exist;
     }).then(function() {
       write(fileForChange, 'Nicest cats in need of homes');
     });
   });
-
-  function existsSync(path) {
-    // node is apparently deprecating this function..
-    try {
-      fs.lstatSync(path);
-      return true;
-    } catch(e) {
-      return false;
-    }
-  }
 
   it('does not overwrite core options if they are not present', function() {
     function F(inputTree, options) {
@@ -573,8 +538,8 @@ describe('Filter', function() {
     }).targetExtension).to.equal('c');
 
     expect(new F('.', {
-      inputEncoding: 'utf8'}
-    ).inputEncoding).to.equal('utf8');
+      inputEncoding: 'utf8'
+    }).inputEncoding).to.equal('utf8');
 
     expect(new F('.', {
       outputEncoding: 'utf8'
@@ -626,8 +591,7 @@ describe('Filter', function() {
         to.be.equal(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
     });
 
-    it('throws an UnimplementedException if the abstract `baseDir` implementation is used',
-       function() {
+    it('throws an UnimplementedException if the abstract `baseDir` implementation is used', function() {
 
       function F(inputTree, options) {
         Filter.call(this, inputTree, options);
@@ -685,22 +649,19 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persist: true })
-        .then(function(results) {
-          var awk = results.subject;
-          // first time, build everything
-          expect(awk.processString.callCount).to.equal(3);
-          expect(awk.postProcess.callCount).to.equal(3);
-        })
-        .then(function() {
-          return builder('dir', { persist: true });
-        })
-        .then(function(results) {
-          var awk = results.subject;
-          // second instance, hits cache
-          expect(awk.processString.callCount).to.equal(0);
-          expect(awk.postProcess.callCount).to.equal(3);
-        });
+      return builder('dir', { persist: true }).then(function(results) {
+        var awk = results.subject;
+        // first time, build everything
+        expect(awk.processString.callCount).to.equal(3);
+        expect(awk.postProcess.callCount).to.equal(3);
+      }).then(function() {
+        return builder('dir', { persist: true });
+      }).then(function(results) {
+        var awk = results.subject;
+        // second instance, hits cache
+        expect(awk.processString.callCount).to.equal(0);
+        expect(awk.postProcess.callCount).to.equal(3);
+      });
     });
 
     it('postProcess return value is not used', function() {
@@ -720,17 +681,13 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persist: true })
-        .then(function(results) {
-          // do nothing, just kicked off to warm the persistent cache
-        })
-        .then(function() {
-          return builder('dir', { persist: true });
-        })
-        .then(function(results) {
-          expect(read(results.directory + '/a/foo.js')).
-            to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
-        });
+      return builder('dir', { persist: true }).then(function(results) {
+        // do nothing, just kicked off to warm the persistent cache
+      }).then(function() {
+        return builder('dir', { persist: true });
+      }).then(function(results) {
+        expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+      });
     });
   });
 
