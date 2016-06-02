@@ -90,15 +90,25 @@ Filter.prototype.build = function() {
   }, this);
 };
 
+Filter.prototype._linkFile = function(inputPath, outputPath, isChange) {
+  if (isChange) {
+    fs.unlinkSync(outputPath);
+  }
+
+  try {
+    return symlinkOrCopySync(inputPath, outputPath);
+  } catch(e) {
+    // optimistically assume the DIR was patched correctly
+    mkdirp.sync(path.dirname(outputPath));
+    return symlinkOrCopySync(inputPath, outputPath);
+  }
+};
+
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange) {
   if (this.canProcessFile(relativePath)) {
     return this.processAndCacheFile(srcDir, destDir, entry, isChange);
   } else {
-    if (isChange) {
-      fs.unlinkSync(outputPath);
-    }
-    var srcPath = srcDir + '/' + relativePath;
-    return symlinkOrCopySync(srcPath, outputPath);
+    return this._linkFile(srcDir + '/' + relativePath, outputPath, isChange)
   }
 };
 
@@ -194,14 +204,14 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange)
   if (inputEncoding === undefined)  inputEncoding  = 'utf8';
   if (outputEncoding === undefined) outputEncoding = 'utf8';
 
-  var contents = fs.readFileSync(srcDir + '/' + relativePath, {
+  var inputPath = srcDir + '/' + relativePath;
+  var contents = fs.readFileSync(inputPath, {
     encoding: inputEncoding
   });
 
   var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath]);
 
   return string.then(function asyncOutputFilteredFile(outputString) {
-
     var outputPath = filter.getDestFilePath(relativePath);
 
     if (outputPath == null) {
@@ -211,6 +221,11 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange)
     }
 
     outputPath = destDir + '/' + outputPath;
+
+
+    if (contents === outputString) {
+      return filter._linkFile(inputPath, outputPath, isChange);
+    }
 
     if (isChange) {
       var isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
