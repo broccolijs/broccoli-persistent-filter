@@ -113,8 +113,9 @@ Filter.prototype.build = function() {
     }
   }, this).then(function() {
     this._debug('build complete: %s, in: %dms', '' + this, Date.now() - start);
-    this.debugLogCounters()
-    this.resetCounters()
+    debugger;
+    this.debugLogCounters();
+    this.resetCounters();
   }.bind(this))
 };
 
@@ -142,8 +143,7 @@ Filter.prototype.resetCounters = function() {
       other: 0
     },
     linked: 0,
-    processed: 0,
-    selfTime: 0
+    processed: 0
   };
 };
 
