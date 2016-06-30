@@ -15,6 +15,7 @@ var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
 var BlankObject = require('blank-object');
 var FSTree = require('fs-tree-diff');
+var IS_VERBOSE = !!process.env.DEBUG_VERBOSE
 
 module.exports = Filter;
 
@@ -42,6 +43,8 @@ function Filter(inputTree, options) {
   this.currentTree = new FSTree();
   this._persistentOutput = true;
 
+  this.resetCounters();
+
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
   if (options) {
     if (options.extensions != null)      this.extensions = options.extensions;
@@ -60,14 +63,24 @@ function Filter(inputTree, options) {
 }
 
 Filter.prototype.build = function() {
+  var start = Date.now();
   var srcDir = this.inputPaths[0];
+
   var destDir = this.outputPath;
   var entries = walkSync.entries(srcDir);
+
+  this._debug('buildng: %s, %o', '' + this, {
+    inputPath: srcDir,
+    outputPath: destDir,
+    entries: entries.length
+  });
+
   var nextTree = new FSTree.fromEntries(entries);
   var currentTree = this.currentTree;
 
   this.currentTree = nextTree;
   var patches = currentTree.calculatePatch(nextTree);
+  this._counters.patches = patches.length;
 
   return mapSeries(patches, function(patch) {
     var operation = patch[0];
@@ -76,24 +89,70 @@ Filter.prototype.build = function() {
     var outputPath = destDir + '/' + (this.getDestFilePath(relativePath) || relativePath);
     var outputFilePath = outputPath;
 
-    this._debug('[operation:%s] %s', operation, relativePath);
+    this._verboseDebug('[operation:%s] %s', operation, relativePath);
 
     switch (operation) {
-      case 'mkdir':  return fs.mkdirSync(outputPath);
-      case 'rmdir':  return fs.rmdirSync(outputPath);
-      case 'unlink': return fs.unlinkSync(outputPath);
-      case 'change':
+      case 'mkdir': {
+        this._counters.operations.mkdir++;
+        return fs.mkdirSync(outputPath);
+      } case 'rmdir': {
+        this._counters.operations.rmdir++;
+        return fs.rmdirSync(outputPath);
+      } case 'unlink': {
+        this._counters.operations.unlink++;
+        return fs.unlinkSync(outputPath);
+      } case 'change': {
+        this._counters.operations.change++;
         return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true);
-      case 'create':
+      } case 'create': {
+        this._counters.operations.create++;
         return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false);
+      } default: {
+        this._counters.operations.other++;
+      }
     }
-  }, this);
+  }, this).then(function() {
+    this._debug('build complete: %s, in: %dms', '' + this, Date.now() - start);
+    this.debugLogCounters()
+    this.resetCounters()
+  }.bind(this))
+};
+
+Filter.prototype.debugLogCounters = function() {
+  this._debug('  - %o', this._counters);
+};
+
+Filter.prototype._verboseDebug = function() {
+  if (IS_VERBOSE) {
+    this._debug.apply(this, arguments);
+  }
+};
+
+Filter.prototype.resetCounters = function() {
+  this._counters = {
+    hit: 0,
+    prime: 0,
+    patches: 0,
+    operations: {
+      mkdir: 0,
+      rmdir: 0,
+      unlink: 0,
+      change: 0,
+      create: 0,
+      other: 0
+    },
+    linked: 0,
+    processed: 0,
+    selfTime: 0
+  };
 };
 
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange) {
   if (this.canProcessFile(relativePath)) {
+    this._counters.processed++;
     return this.processAndCacheFile(srcDir, destDir, entry, isChange);
   } else {
+    this._counters.linked++;
     if (isChange) {
       fs.unlinkSync(outputPath);
     }
@@ -215,10 +274,10 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange)
     if (isChange) {
       var isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
       if (isSame) {
-        this._debug('[change:%s] but was the same, skipping', relativePath, isSame);
+        this._verboseDebug('[change:%s] but was the same, skipping', relativePath, isSame);
         return;
       } else {
-        this._debug('[change:%s] but was NOT the same, writing new file', relativePath);
+        this._verboseDebug('[change:%s] but was NOT the same, writing new file', relativePath);
       }
     }
 
