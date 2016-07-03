@@ -15,7 +15,7 @@ var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
 var BlankObject = require('blank-object');
 var FSTree = require('fs-tree-diff');
-var IS_VERBOSE = !!process.env.DEBUG_VERBOSE
+var IS_VERBOSE = !!process.env.DEBUG_VERBOSE;
 
 module.exports = Filter;
 
@@ -113,10 +113,9 @@ Filter.prototype.build = function() {
     }
   }, this).then(function() {
     this._debug('build complete: %s, in: %dms', '' + this, Date.now() - start);
-    debugger;
     this.debugLogCounters();
     this.resetCounters();
-  }.bind(this))
+  }.bind(this));
 };
 
 Filter.prototype.debugLogCounters = function() {
