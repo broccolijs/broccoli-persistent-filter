@@ -113,7 +113,6 @@ Filter.prototype.build = function() {
     }
   }, this).then(function() {
     this._debug('build complete: %s, in: %dms', '' + this, Date.now() - start);
-    debugger;
     this.debugLogCounters();
     this.resetCounters();
   }.bind(this))
