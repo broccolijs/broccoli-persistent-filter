@@ -681,7 +681,7 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persist: true }).then(function(results) {
+      return builder('dir', { persist: true }).then(function(/*results*/) {
         // do nothing, just kicked off to warm the persistent cache
       }).then(function() {
         return builder('dir', { persist: true });
