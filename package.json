@@ -39,7 +39,7 @@
     "promise-map-series": "^0.2.1",
     "rsvp": "^3.0.18",
     "symlink-or-copy": "^1.0.1",
-    "walk-sync": "^0.2.2"
+    "walk-sync": "^0.2.7"
   },
   "devDependencies": {
     "broccoli-test-helpers": "^0.0.9",
