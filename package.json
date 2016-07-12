@@ -48,7 +48,7 @@
     "chai-files": "^1.2.0",
     "coveralls": "^2.11.4",
     "istanbul": "^0.4.2",
-    "minimatch": "^3.0.0",
+    "minimatch": "^3.0.2",
     "mocha": "^2.2.5",
     "mocha-jshint": "^2.3.1",
     "rimraf": "^2.4.2",
