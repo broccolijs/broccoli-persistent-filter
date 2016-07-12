@@ -32,14 +32,14 @@
     "blank-object": "^1.0.1",
     "broccoli-plugin": "^1.0.0",
     "debug": "^2.2.0",
-    "fs-tree-diff": "^0.4.4",
+    "fs-tree-diff": "^0.5.0",
     "hash-for-dep": "^1.0.2",
     "md5-hex": "^1.0.2",
     "mkdirp": "^0.5.1",
     "promise-map-series": "^0.2.1",
     "rsvp": "^3.0.18",
     "symlink-or-copy": "^1.0.1",
-    "walk-sync": "^0.2.2"
+    "walk-sync": "^0.2.7"
   },
   "devDependencies": {
     "broccoli-test-helpers": "^0.0.9",
@@ -48,7 +48,7 @@
     "chai-files": "^1.2.0",
     "coveralls": "^2.11.4",
     "istanbul": "^0.4.2",
-    "minimatch": "^3.0.0",
+    "minimatch": "^3.0.2",
     "mocha": "^2.2.5",
     "mocha-jshint": "^2.3.1",
     "rimraf": "^2.4.2",

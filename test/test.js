@@ -31,7 +31,12 @@ var IncompleteFilter = require('./helpers/incomplete');
 var MyFilter = require('./helpers/simple');
 var Rot13Filter = require('./helpers/rot13');
 
-var fixturePath = path.join(__dirname, 'fixtures');
+var rootFixturePath = path.join(__dirname, 'fixtures');
+
+function fixturePath(relativePath) {
+  return path.join(rootFixturePath, relativePath);
+}
+
 
 describe('Filter', function() {
   function makeBuilder(plugin, dir, prepSubject) {
@@ -112,7 +117,7 @@ describe('Filter', function() {
 
   describe('on rebuild', function() {
     it('calls processString only if work is needed', function() {
-      var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
         sinon.spy(awk, 'processString');
         sinon.spy(awk, 'postProcess');
         return awk;
@@ -165,7 +170,7 @@ describe('Filter', function() {
 
     describe('with extensions & targetExtension', function() {
       it('calls processString only if work is needed', function() {
-        var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+        var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
           sinon.spy(awk, 'processString');
           return awk;
         });
@@ -245,7 +250,7 @@ describe('Filter', function() {
     });
 
     it('handles renames', function() {
-      var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
         sinon.spy(awk, 'processString');
         return awk;
       });
@@ -284,7 +289,7 @@ describe('Filter', function() {
     });
 
     it('preserves mtimes if neither content did not actually change', function() {
-      var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
         sinon.spy(awk, 'processString');
         return awk;
       });
@@ -323,7 +328,7 @@ describe('Filter', function() {
   });
 
   it('targetExtension work for no extensions', function() {
-    var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+    var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
       sinon.spy(awk, 'processString');
       return awk;
     });
@@ -342,7 +347,7 @@ describe('Filter', function() {
   });
 
   it('targetExtension work for single extensions', function() {
-    var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+    var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
       sinon.spy(awk, 'processString');
       return awk;
     });
@@ -361,7 +366,7 @@ describe('Filter', function() {
   });
 
   it('targetExtension work for multiple extensions', function() {
-    var builder = makeBuilder(Rot13Filter, fixturePath, function(awk) {
+    var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
       sinon.spy(awk, 'processString');
       return awk;
     });
@@ -379,9 +384,28 @@ describe('Filter', function() {
     });
   });
 
+  it('handles directories that older versions of walkSync do not sort lexicographically', function() {
+    var builder = makeBuilder(Rot13Filter, fixturePath('b'), function(awk) {
+      sinon.spy(awk, 'processString');
+      return awk;
+    });
+
+    return builder('dir', {
+      targetExtension: 'foo',
+      extensions: ['js']
+    }).then(function(results) {
+      var awk = results.subject;
+
+      expect(file(results.directory + '/foo.md')).to.equal('Nicest cats in need of homes');
+      expect(file(results.directory + '/foo/bar.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+
+      expect(awk.processString.callCount).to.equal(1);
+    });
+  });
+
   it('should processString only when canProcessFile returns true', function() {
 
-    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       sinon.spy(awk, 'processString');
       return awk;
     });
@@ -402,7 +426,7 @@ describe('Filter', function() {
 
   it('should processString and postProcess', function() {
 
-    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       awk.postProcess = function(object) {
         expect(object.output).to.exist;
 
@@ -433,7 +457,7 @@ describe('Filter', function() {
 
   it('complains if canProcessFile is true but getDestFilePath is null', function() {
 
-    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       awk.canProcessFile = function() {
         // We cannot return `true` here unless `getDestFilePath` also returns
         // a path
@@ -450,11 +474,11 @@ describe('Filter', function() {
   });
 
   it('purges cache', function() {
-    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       return awk;
     });
 
-    var fileForRemoval = path.join(fixturePath, 'dir', 'a', 'README.md');
+    var fileForRemoval = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
 
     return builder('dir', {
       glob: '**/*.md',
@@ -483,9 +507,9 @@ describe('Filter', function() {
   });
 
   it('replaces stale entries', function() {
-    var fileForChange = path.join(fixturePath, 'dir', 'a', 'README.md');
+    var fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
 
-    var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       return awk;
     });
 
@@ -570,7 +594,7 @@ describe('Filter', function() {
     });
 
     it('initializes cache', function() {
-      var f = new F(fixturePath, {
+      var f = new F(fixturePath('a'), {
         persist: true
       });
 
@@ -582,7 +606,7 @@ describe('Filter', function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
                                                                     'foo-bar-baz-testing-123');
 
-      var f = new F(fixturePath, {
+      var f = new F(fixturePath('a'), {
         persist: true
       });
 
@@ -600,19 +624,19 @@ describe('Filter', function() {
       inherits(F, Filter);
 
       expect(function() {
-        new F(fixturePath, { persist: true });
+        new F(fixturePath('a'), { persist: true });
       }).to.throw(/Filter must implement prototype.baseDir/);
     });
 
     it('`cacheKeyProcessString` return correct first level file cache', function() {
-      var f = new F(fixturePath, { persist: true });
+      var f = new F(fixturePath('a'), { persist: true });
 
       expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).
         to.eql('272ebac734fa8949ba2aa803f332ec5b');
     });
 
     it('properly reads the file tree', function() {
-      var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
         return awk;
       });
 
@@ -637,7 +661,7 @@ describe('Filter', function() {
                                                                     'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
-      var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
         awk.postProcess = function(result) {
           expect(result.output).to.exist;
           return result;
@@ -669,7 +693,7 @@ describe('Filter', function() {
                                                                     'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
-      var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
         awk.postProcess = function(result) {
           expect(result.output).to.exist;
 
@@ -703,7 +727,7 @@ describe('Filter', function() {
     });
 
     it('does not effect the current cwd', function() {
-      var builder = makeBuilder(ReplaceFilter, fixturePath, function(awk) {
+      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
         sinon.spy(awk, 'canProcessFile');
         return awk;
       });
