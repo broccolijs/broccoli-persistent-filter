@@ -1,5 +1,20 @@
 # master
 
+# 1.2.6
+
+* update walk-sync, now correctly sorts directories
+* update fs-tree, fixes the "rename only file in directory bug", possible performance improvements
+* travis now tests against all versions of node that ember-cli supports
+
+# 1.2.5
+
+* remove leftover debugger
+* add jshint to tests
+
+# 1.2.4
+
+* [logging] remove selfTime from counters
+
 # 1.2.3
 
 * improve debug logging, less verbose by default, but more verbose with opt-in DEBUG_VERBOSE=true
