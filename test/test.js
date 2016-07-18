@@ -726,6 +726,20 @@ describe('Filter', function() {
       fs.writeFileSync.restore();
     });
 
+    it('should work if `processString` returns a Promise', function() {
+      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+        awk.processor.processString = function() {
+          return Promise.resolve('a promise is a promise');
+        };
+
+        return awk;
+      });
+
+      return builder('dir', { persistent: true }).then(function(results) {
+        expect(file(results.directory + '/a/foo.js')).to.equal('a promise is a promise');
+      });
+    });
+
     it('does not effect the current cwd', function() {
       var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
         sinon.spy(awk, 'canProcessFile');
