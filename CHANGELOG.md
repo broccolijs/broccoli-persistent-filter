@@ -1,5 +1,10 @@
 # master
 
+# 1.2.7
+
+* switch to heimdalljs-logger, allowing logs to show context within the broccoli
+  graph
+
 # 1.2.6
 
 * update walk-sync, now correctly sorts directories
