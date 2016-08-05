@@ -4,6 +4,10 @@
   "description": "broccoli filter but with a persistent cache",
   "author": "Stefan Penner <stefan.penner@gmail.com>",
   "main": "index.js",
+  "files": [
+    "index.js",
+    "lib/"
+  ],
   "scripts": {
     "test": "mocha",
     "test:debug": "mocha debug",
