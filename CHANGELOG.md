@@ -1,5 +1,13 @@
 # master
 
+# 1.2.9
+
+* improve logging, add some information at INFO level and not only DEBUG
+
+# 1.2.8
+
+* reduce package size with explicit `files` in `package.json`
+
 # 1.2.7
 
 * switch to heimdalljs-logger, allowing logs to show context within the broccoli
