@@ -81,10 +81,17 @@ function Filter(inputTree, options) {
   this._destFilePathCache = new BlankObject();
 }
 
+function timeSince(time) {
+  var delta = process.hrtime(time);
+  var deltaNS = delta[0] * 1e9 + delta[1];
+  return (deltaNS / 1e6).toFixed(2) +' ms';
+}
+
 Filter.prototype.build = function() {
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
 
+  var prevTime = process.hrtime();
   var instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
   var entries = walkSync.entries(srcDir);
@@ -98,10 +105,13 @@ Filter.prototype.build = function() {
   instrumentation.stats.patches = patches.length;
   instrumentation.stats.entries = entries.length;
 
+  this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
   instrumentation.stop();
 
   return heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
-    return mapSeries(patches, function(patch) {
+    var prevTime = process.hrtime();
+
+    var result = mapSeries(patches, function(patch) {
       var operation = patch[0];
       var relativePath = patch[1];
       var entry = patch[2];
@@ -131,6 +141,10 @@ Filter.prototype.build = function() {
         }
       }
     }, this);
+
+    this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+
+    return result;
   }, this);
 };
 
