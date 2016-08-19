@@ -94,7 +94,10 @@ Filter.prototype.build = function() {
   var prevTime = process.hrtime();
   var instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
+  var walkStart = process.hrtime();
   var entries = walkSync.entries(srcDir);
+  var walkDuration = timeSince(walkStart);
+
   var nextTree = new FSTree.fromEntries(entries);
   var currentTree = this.currentTree;
 
@@ -104,8 +107,13 @@ Filter.prototype.build = function() {
 
   instrumentation.stats.patches = patches.length;
   instrumentation.stats.entries = entries.length;
+  instrumentation.stats.walk = {
+    entries: entries.length,
+    duration: walkDuration
+  };
 
   this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
+
   instrumentation.stop();
 
   return heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
