@@ -1,5 +1,13 @@
 # master
 
+# 1.2.11
+
+* instrument walkSync times
+
+# 1.2.10
+
+* Add some info level logging (build summaries)
+
 # 1.2.9
 
 * improve logging, add some information at INFO level and not only DEBUG
