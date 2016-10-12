@@ -37,7 +37,7 @@
     "broccoli-plugin": "^1.0.0",
     "fs-tree-diff": "^0.5.2",
     "hash-for-dep": "^1.0.2",
-    "heimdalljs": "^0.2.1",
+    "heimdalljs": "^0.3.0",
     "heimdalljs-logger": "^0.1.7",
     "md5-hex": "^1.0.2",
     "mkdirp": "^0.5.1",
