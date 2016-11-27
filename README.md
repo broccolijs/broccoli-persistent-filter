@@ -149,7 +149,7 @@ Subclass.prototype.cacheKeyProcessString = function(string, relativePath) {
 }
 ```
 
-It is recommended that persistent re-builds is opt-in by the consumer as it does not currently work on all systems.
+It is recommended that persistent re-builds is opt-in by the consuming plugin author, as if no reasonable cache key can be created it should not be used.
 
 ```js
 var myTree = new SomePlugin('lib', { persist: true });
