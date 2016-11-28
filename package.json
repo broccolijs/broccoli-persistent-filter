@@ -51,7 +51,7 @@
     "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",
     "chai-files": "^1.4.0",
-    "coveralls": "^2.11.4",
+    "coveralls": "^2.11.10",
     "istanbul": "^0.4.2",
     "minimatch": "^3.0.2",
     "mocha": "^3.0.0",
