@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "broccoli-test-helpers": "^0.0.9",
-    "chai": "^3.0.0",
+    "chai": "^3.5.0",
     "chai-as-promised": "^6.0.0",
     "chai-files": "^1.2.0",
     "coveralls": "^2.11.4",
