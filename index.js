@@ -49,20 +49,24 @@ function Filter(inputTree, options) {
     throw new TypeError('Filter is an abstract class and must be sub-classed');
   }
 
-  var name = 'broccoli-persistent-filter:' + (this.constructor.name);
+  var loggerName = 'broccoli-persistent-filter:' + (this.constructor.name);
+  var annotation = (options && options.annotation) || this.annotation || this.description;
 
-  if (this.description) {
-    name += ' > [' + this.description + ']';
+  if (annotation) {
+    loggerName += ' > [' + annotation + ']';
   }
 
-  this._logger = debugGenerator(name);
+  this._logger = debugGenerator(loggerName);
 
-  Plugin.call(this, [inputTree]);
+  Plugin.call(this, [inputTree], {
+    name: (options && options.name) || this.name || loggerName,
+    annotation: (options && options.annotation) || this.annotation || annotation,
+    persistentOutput: true
+  });
 
   this.processor = new Processor(options);
   this.processor.setStrategy(defaultProccessor);
   this.currentTree = new FSTree();
-  this._persistentOutput = true;
 
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
   if (options) {
