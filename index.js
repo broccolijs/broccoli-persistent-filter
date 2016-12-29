@@ -29,6 +29,7 @@ function ApplyPatchesSchema() {
   this.linked = 0;
 
   this.processString = 0;
+  this.processStringTime = 0;
   this.persistentCacheHit = 0;
   this.persistentCachePrime = 0;
 }
@@ -85,9 +86,13 @@ function Filter(inputTree, options) {
   this._destFilePathCache = new BlankObject();
 }
 
-function timeSince(time) {
+function nanosecondsSince(time) {
   var delta = process.hrtime(time);
-  var deltaNS = delta[0] * 1e9 + delta[1];
+  return delta[0] * 1e9 + delta[1];
+}
+
+function timeSince(time) {
+  var deltaNS = nanosecondsSince(time);
   return (deltaNS / 1e6).toFixed(2) +' ms';
 }
 
@@ -271,9 +276,11 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
   });
 
   instrumentation.processString++;
+  var processStringStart = process.hrtime();
   var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, instrumentation]);
 
   return string.then(function asyncOutputFilteredFile(outputString) {
+    instrumentation.processStringTime += nanosecondsSince(processStringStart);
     var outputPath = filter.getDestFilePath(relativePath);
 
     if (outputPath == null) {
