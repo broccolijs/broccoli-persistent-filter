@@ -39,7 +39,7 @@
     "hash-for-dep": "^1.0.2",
     "heimdalljs": "^0.2.1",
     "heimdalljs-logger": "^0.1.7",
-    "md5-hex": "^1.0.2",
+    "md5-hex": "^2.0.0",
     "mkdirp": "^0.5.1",
     "promise-map-series": "^0.2.1",
     "rsvp": "^3.0.18",
