@@ -290,7 +290,7 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     let destPath = destDir + '/' + outputPath;
 
     if (isChange) {
-      var isSame = this.in[0].readFileSync(relativePath, 'UTF-8') === outputString;   // <---
+      var isSame = this.in[0].readFileSync(relativePath, 'UTF-8') === outputString;
 
       if (isSame) {
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
