@@ -197,7 +197,6 @@ describe('Filter', function() {
           originalFilePath = awk.inputPaths[0] + '/a/README.md';
           originalFileContent = fs.readFileSync(originalFilePath);
           fs.writeFileSync(originalFilePath, 'OMG');
-
           expect(file(results.directory + '/a/foo.OMG')).to.exist;
 
           return results.builder();
@@ -208,7 +207,6 @@ describe('Filter', function() {
           awk.processString.callCount = 0;
 
           fs.unlinkSync(originalFilePath);
-
           return results.builder();
         }).then(function(results) {
           var awk = results.subject;
@@ -597,7 +595,6 @@ describe('Filter', function() {
       var f = new F(fixturePath('a'), {
         persist: true
       });
-
       // TODO: we should just deal in observable differences, not reaching into private state
       expect(f.processor.processor._cache).to.be.ok;
     });

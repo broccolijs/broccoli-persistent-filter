@@ -1,13 +1,10 @@
 'use strict';
 
-var fs = require('fs');
 var path = require('path');
-var mkdirp = require('mkdirp');
 var Promise = require('rsvp').Promise;
 var Plugin = require('broccoli-plugin');
 var walkSync = require('walk-sync');
 var mapSeries = require('promise-map-series');
-var symlinkOrCopySync = require('symlink-or-copy').sync;
 var debugGenerator = require('heimdalljs-logger');
 var md5Hex = require('md5-hex');
 var Processor = require('./lib/processor');
@@ -62,6 +59,7 @@ function Filter(inputTree, options) {
   Plugin.call(this, [inputTree], {
     name: (options && options.name) || this.name || loggerName,
     annotation: (options && options.annotation) || this.annotation || annotation,
+    fsFacade: true,
     persistentOutput: true
   });
 
@@ -132,21 +130,21 @@ Filter.prototype.build = function() {
       var operation = patch[0];
       var relativePath = patch[1];
       var entry = patch[2];
-      var outputPath = destDir + '/' + (this.getDestFilePath(relativePath) || relativePath);
+      var destPath = this.getDestFilePath(relativePath) || relativePath;
+      var outputPath = destDir + '/' + destPath;
       var outputFilePath = outputPath;
 
       this._logger.debug('[operation:%s] %s', operation, relativePath);
-
       switch (operation) {
         case 'mkdir': {
           instrumentation.mkdir++;
-          return fs.mkdirSync(outputPath);
+          return this.out.mkdirSync(relativePath);
         } case 'rmdir': {
           instrumentation.rmdir++;
-          return fs.rmdirSync(outputPath);
+          return this.out.rmdirSync(relativePath);
         } case 'unlink': {
           instrumentation.unlink++;
-          return fs.unlinkSync(outputPath);
+          return this.out.unlinkSync(destPath);
         } case 'change': {
           instrumentation.change++;
           return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
@@ -172,10 +170,9 @@ Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, ou
   } else {
     instrumentation.linked++;
     if (isChange) {
-      fs.unlinkSync(outputPath);
+        this.out.unlinkSync(relativePath);
     }
-    var srcPath = srcDir + '/' + relativePath;
-    return symlinkOrCopySync(srcPath, outputPath);
+    return this.out.symlinkSync(this.in[0].resolvePath(relativePath), relativePath);
   }
 };
 
@@ -271,12 +268,13 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
   if (inputEncoding === undefined)  inputEncoding  = 'utf8';
   if (outputEncoding === undefined) outputEncoding = 'utf8';
 
-  var contents = fs.readFileSync(srcDir + '/' + relativePath, {
+  var contents = this.in[0].readFileSync( relativePath, {
     encoding: inputEncoding
   });
 
   instrumentation.processString++;
   var processStringStart = process.hrtime();
+
   var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, instrumentation]);
 
   return string.then(function asyncOutputFilteredFile(outputString) {
@@ -289,12 +287,12 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
                       relativePath + '") is null');
     }
 
-    outputPath = destDir + '/' + outputPath;
+    let destPath = destDir + '/' + outputPath;
 
     if (isChange) {
-      var isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
-      if (isSame) {
+      var isSame = this.in[0].readFileSync(relativePath, 'UTF-8') === outputString;   // <---
 
+      if (isSame) {
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
         return;
       } else {
@@ -303,14 +301,15 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     }
 
     try {
-      fs.writeFileSync(outputPath, outputString, {
+      this.out.writeFileSync(outputPath, outputString, {
         encoding: outputEncoding
       });
 
+
     } catch(e) {
       // optimistically assume the DIR was patched correctly
-      mkdirp.sync(path.dirname(outputPath));
-      fs.writeFileSync(outputPath, outputString, {
+      this.out.mkdirpSync(path.dirname(destPath));
+      this.out.writeFileSync(relativePath, outputString, {
         encoding: outputEncoding
       });
     }
