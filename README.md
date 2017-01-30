@@ -155,6 +155,15 @@ It is recommended that persistent re-builds is opt-in by the consuming plugin au
 var myTree = new SomePlugin('lib', { persist: true });
 ```
 
+### Warning
+
+By using the persistent cache, a lot of small files will be created on the disk without being deleted.
+This might use all the inodes of your disk.
+You need to make sure to clean regularly the old files or configure your system to do so.
+
+By default, the files are stored in the [operatin system's default directory for temporary files](https://nodejs.org/api/os.html#os_os_tmpdir),
+but you can change this location by setting the `BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT` environment variable to the path of another folder.
+
 ## FAQ
 
 ### Upgrading from 0.1.x to 1.x
