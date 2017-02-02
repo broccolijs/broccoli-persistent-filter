@@ -66,7 +66,6 @@ function Filter(inputTree, options) {
   this.processor = new Processor(options);
   this.processor.setStrategy(defaultProccessor);
   this.currentTree = new FSTree();
-
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
   if (options) {
     if (options.extensions != null)      this.extensions = options.extensions;
@@ -79,7 +78,7 @@ function Filter(inputTree, options) {
   }
 
   this.processor.init(this);
-
+  this.calPatch = false;
   this._canProcessCache = new BlankObject();
   this._destFilePathCache = new BlankObject();
 }
@@ -100,23 +99,27 @@ Filter.prototype.build = function() {
 
   var prevTime = process.hrtime();
   var instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
-
   var walkStart = process.hrtime();
   var entries = walkSync.entries(srcDir);
   var walkDuration = timeSince(walkStart);
 
-  var nextTree = new FSTree.fromEntries(entries);
-  var currentTree = this.currentTree;
+  var patches;
 
-  this.currentTree = nextTree;
+  if(this.calPatch) {
+    //diffing to find changes
+    var nextTree = new FSTree.fromEntries(entries);
+    var currentTree = this.currentTree;
+    this.currentTree = nextTree;
+    patches = currentTree.calculatePatch(nextTree);
 
-  var patches = currentTree.calculatePatch(nextTree);
+  } else  {
+    patches = this.in[0].changes();
+  }
 
   instrumentation.stats.patches = patches.length;
   instrumentation.stats.entries = entries.length;
   instrumentation.stats.walk = {
-    entries: entries.length,
-    duration: walkDuration
+    entries: entries.length, duration: walkDuration
   };
 
   this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
@@ -131,8 +134,7 @@ Filter.prototype.build = function() {
       var relativePath = patch[1];
       var entry = patch[2];
       var destPath = this.getDestFilePath(relativePath) || relativePath;
-      var outputPath = destDir + '/' + destPath;
-      var outputFilePath = outputPath;
+      var outputFilePath = destDir + '/' + destPath;
 
       this._logger.debug('[operation:%s] %s', operation, relativePath);
       switch (operation) {
@@ -158,8 +160,8 @@ Filter.prototype.build = function() {
     }, this);
 
     this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
-
     return result;
+
   }, this);
 };
 
@@ -279,15 +281,13 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
 
   return string.then(function asyncOutputFilteredFile(outputString) {
     instrumentation.processStringTime += nanosecondsSince(processStringStart);
-    var outputPath = filter.getDestFilePath(relativePath);
+    var destRelativePath = filter.getDestFilePath(relativePath);
 
-    if (outputPath == null) {
+    if (destRelativePath == null) {
       throw new Error('canProcessFile("' + relativePath +
                       '") is true, but getDestFilePath("' +
                       relativePath + '") is null');
     }
-
-    let destPath = destDir + '/' + outputPath;
 
     if (isChange) {
       var isSame = this.in[0].readFileSync(relativePath, 'UTF-8') === outputString;
@@ -300,20 +300,17 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
       }
     }
 
-    try {
-      this.out.writeFileSync(outputPath, outputString, {
+   try {
+      this.out.writeFileSync(destRelativePath, outputString, {
         encoding: outputEncoding
       });
-
-
-    } catch(e) {
+     } catch(e) {
       // optimistically assume the DIR was patched correctly
-      this.out.mkdirpSync(path.dirname(destPath));
-      this.out.writeFileSync(relativePath, outputString, {
+      this.out.mkdirpSync(path.dirname(destRelativePath));
+      this.out.writeFileSync(destRelativePath, outputString, {
         encoding: outputEncoding
       });
     }
-
     return outputString;
   }.bind(this));
 };
