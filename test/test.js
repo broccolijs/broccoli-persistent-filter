@@ -124,6 +124,7 @@ describe('Filter', function() {
       });
       var originalFileContent;
       var originalFilePath;
+      var basePath;
 
       return builder('dir').then(function(results) {
         var awk = results.subject;
@@ -139,9 +140,10 @@ describe('Filter', function() {
         expect(awk.processString.callCount).to.equal(0);
         expect(awk.postProcess.callCount).to.equal(0);
 
-        originalFilePath = awk.inputPaths[0] + '/a/README.md';
-        originalFileContent = fs.readFileSync(originalFilePath);
-        fs.writeFileSync(awk.inputPaths[0] + '/a/README.md', 'OMG');
+        basePath = results.subject.in[0].root;
+        originalFilePath =  'a/README.md';
+        originalFileContent = results.subject.in[0].readFileSync(originalFilePath);
+        results.subject.in[0].writeFileSync('a/README.md', 'OMG');
 
         return results.builder();
       }).then(function(results) {
@@ -153,7 +155,7 @@ describe('Filter', function() {
         awk.postProcess.callCount = 0;
         awk.processString.callCount = 0;
 
-        fs.unlinkSync(originalFilePath);
+        results.subject.in[0].unlinkSync(originalFilePath);
 
         return results.builder();
       }).then(function(results) {
@@ -164,7 +166,7 @@ describe('Filter', function() {
 
         awk.postProcess.callCount = 0;
       }).finally(function() {
-        fs.writeFileSync(originalFilePath, originalFileContent);
+         fs.writeFileSync(basePath + originalFilePath, originalFileContent);
       });
     });
 
@@ -179,6 +181,7 @@ describe('Filter', function() {
         var originalJSFileContent;
         var originalJSFilePath;
         var someDirPath;
+        var basePath;
 
         return builder('dir', {
           extensions: ['js'],
@@ -189,44 +192,43 @@ describe('Filter', function() {
           expect(awk.processString.callCount).to.equal(2);
           awk.processString.callCount = 0;
           return results.builder();
-        }).then(function(results) {
-          var awk = results.subject;
+         }).then(function(results) {
+           var awk = results.subject;
           // rebuild, but no changes (build nothing);
           expect(awk.processString.callCount).to.equal(0);
 
-          originalFilePath = awk.inputPaths[0] + '/a/README.md';
-          originalFileContent = fs.readFileSync(originalFilePath);
-          fs.writeFileSync(originalFilePath, 'OMG');
+          basePath = results.subject.in[0].root;
+          originalFilePath =  'a/README.md';
+          originalFileContent = results.subject.in[0].readFileSync(originalFilePath);
+          results.subject.in[0].writeFileSync(originalFilePath, 'OMG');
           expect(file(results.directory + '/a/foo.OMG')).to.exist;
 
-          return results.builder();
+           return results.builder();
         }).then(function(results) {
           var awk = results.subject;
           // rebuild 0 files, changed file does not match extensions
           expect(awk.processString.callCount).to.equal(0);
           awk.processString.callCount = 0;
 
-          fs.unlinkSync(originalFilePath);
+          results.subject.in[0].unlinkSync(originalFilePath);
           return results.builder();
-        }).then(function(results) {
+       }).then(function(results) {
           var awk = results.subject;
           // rebuild only 0 files
           expect(awk.processString.callCount).to.equal(0);
-          someDirPath = awk.inputPaths[0] + '/fooo/';
-          fs.mkdir(someDirPath);
+          someDirPath =  'fooo/';
+          results.subject.in[0].mkdirSync(someDirPath);
           return results.builder();
-        }).then(function(results) {
+       }).then(function(results) {
           var awk = results.subject;
           // rebuild, but no changes (build nothing);
           expect(awk.processString.callCount).to.equal(0);
-
-          originalJSFilePath = awk.inputPaths[0] + '/a/foo.js';
-          originalJSFileContent = fs.readFileSync(originalJSFilePath);
-          fs.writeFileSync(originalJSFilePath, 'OMG');
-
+          originalJSFilePath = 'a/foo.js';
+          originalJSFileContent = results.subject.in[0].readFileSync(originalJSFilePath);
+          results.subject.in[0].writeFileSync(originalJSFilePath, 'OMG');
           return results.builder();
-        }).then(function(results) {
-          var awk = results.subject;
+         }).then(function(results) {
+           var awk = results.subject;
           // rebuild, but no changes (build nothing);
           expect(awk.processString.callCount).to.equal(1);
           expect(fs.readFileSync(results.directory + '/a/foo.OMG', 'UTF-8')).to.eql('BZT');
@@ -234,56 +236,59 @@ describe('Filter', function() {
           return results.builder();
         }).finally(function() {
           try {
-            fs.writeFileSync(originalFilePath, originalFileContent);
+            fs.writeFileSync(basePath + originalFilePath,  originalFileContent);
           } catch(e) { }
           try {
-            fs.rmdir(someDirPath);
+            fs.rmdir(basePath + someDirPath);
           } catch(e) { }
 
           try {
-            fs.writeFileSync(originalJSFilePath, originalJSFileContent);
+            fs.writeFileSync(basePath + originalJSFilePath, originalJSFileContent);
           } catch(e) { }
         });
       });
     });
 
     it('handles renames', function() {
-      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function (awk) {
         sinon.spy(awk, 'processString');
         return awk;
       });
 
       var filePathPrevious;
       var filePathNext;
+      var basePath;
 
       return builder('dir', {
-        extensions: ['md'],
-        targetExtension: ['foo.md']
-      }).then(function(results) {
+        extensions: ['md'], targetExtension: ['foo.md']
+      }).then(function (results) {
         var awk = results.subject;
         // first time, build everything
         expect(awk.processString.callCount).to.equal(1);
         awk.processString.callCount = 0;
 
-        filePathPrevious = awk.inputPaths[0] + '/a/README.md';
-        filePathNext = awk.inputPaths[0] + '/a/README-renamed.md';
+        filePathPrevious = 'a/README.md';
+        filePathNext = 'a/README-renamed.md';
+        basePath = results.subject.in[0].root;
+        let content = results.subject.in[0].readFileSync(filePathPrevious);
+        results.subject.in[0].writeFileSync(filePathNext, content);
+        results.subject.in[0].unlinkSync(filePathPrevious);
 
-        fs.writeFileSync(filePathNext, fs.readFileSync(filePathPrevious));
-        fs.unlinkSync(filePathPrevious);
+          return results.builder();
 
-        return results.builder();
-      }).then(function(results) {
-        expect(results.files).to.eql([
-          'a/',
-          'a/README-renamed.foo.md',
-          'a/bar/',
-          'a/bar/bar.js',
-          'a/foo.js'
-        ]);
-      }).finally(function() {
-        fs.writeFileSync(filePathPrevious, fs.readFileSync(filePathNext));
-        fs.unlinkSync(filePathNext);
-      });
+        }).then(function (results) {
+          expect(results.files).to.eql([
+            'a/',
+            'a/README-renamed.foo.md',
+            'a/bar/',
+            'a/bar/bar.js',
+            'a/foo.js']);
+
+        }).finally(function () {
+          fs.writeFileSync(basePath + filePathPrevious, fs.readFileSync(basePath + filePathNext));
+          fs.unlinkSync(basePath + filePathNext);
+        });
+
     });
 
     it('preserves mtimes if neither content did not actually change', function() {
@@ -472,19 +477,20 @@ describe('Filter', function() {
   });
 
   it('purges cache', function() {
+
+    var fileForRemoval;
     var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       return awk;
     });
-
-    var fileForRemoval = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
 
     return builder('dir', {
       glob: '**/*.md',
       search: 'dogs',
       replace: 'cats'
     }).then(function(results) {
+      fileForRemoval = results.subject.inputPaths[0] + '/a/README.md';
       expect(file(fileForRemoval)).to.exist;
-      rimraf(fileForRemoval);
+      results.subject.in[0].unlinkSync('a/README.md');
 
       expect(file(fileForRemoval)).to.not.exist;
       expect(file(results.directory + '/a/README.md')).to.exist;
@@ -517,17 +523,12 @@ describe('Filter', function() {
       replace: 'cats'
     }).then(function(results) {
       expect(file(fileForChange)).to.exist;
-
       write(fileForChange, 'such changes');
-
       expect(file(fileForChange)).to.exist;
-
       return results.builder();
     }).then(function() {
       expect(file(fileForChange)).to.exist;
-
       write(fileForChange, 'such changes');
-
       expect(file(fileForChange)).to.exist;
     }).then(function() {
       write(fileForChange, 'Nicest cats in need of homes');
@@ -657,7 +658,6 @@ describe('Filter', function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
                                                                     'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
-
       var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
         awk.postProcess = function(result) {
           expect(result.output).to.exist;
