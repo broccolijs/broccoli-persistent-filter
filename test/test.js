@@ -611,7 +611,7 @@ describe('Filter', function() {
       });
 
       // TODO: we should just deal in observable differences, not reaching into private state
-      expect(f.processor.processor._cache.tmpDir).
+      expect(f.processor.processor._cache.tmpdir).
         to.be.equal(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
     });
 
