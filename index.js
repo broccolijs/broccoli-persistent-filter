@@ -99,28 +99,26 @@ Filter.prototype.build = function() {
   var prevTime = process.hrtime();
   var instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
   var walkStart = process.hrtime();
-  var entries = walkSync.entries(srcDir);
   var walkDuration = timeSince(walkStart);
   var patches;
 
   if(this._fsFacade) {
     //using change tracking
     patches = this.in[0].changes();
+
   } else  {
     //diffing to find changes, remove this later
+    var entries = walkSync.entries(srcDir);
     var nextTree = new FSTree.fromEntries(entries);
     var currentTree = this.currentTree;
     this.currentTree = nextTree;
     patches = currentTree.calculatePatch(nextTree);
   }
 
-  instrumentation.stats.patches = patches.length;
-  instrumentation.stats.entries = entries.length;
-  instrumentation.stats.walk = {
-    entries: entries.length, duration: walkDuration
-  };
+  console.log("----patches from persistent filter");
+  console.log(patches);
 
-  this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
+  instrumentation.stats.patches = patches.length;
 
   instrumentation.stop();
 
@@ -133,6 +131,7 @@ Filter.prototype.build = function() {
       var entry = patch[2];
       var destPath = this.getDestFilePath(relativePath) || relativePath;
       var outputFilePath = destDir + '/' + destPath;
+      let srcAbsolutePath = this.in[0].resolvePath(relativePath);
 
       this._logger.debug('[operation:%s] %s', operation, relativePath);
       switch (operation) {
@@ -141,16 +140,16 @@ Filter.prototype.build = function() {
           return this.out.mkdirSync(relativePath);
         } case 'rmdir': {
           instrumentation.rmdir++;
-          return this.out.rmdirSync(relativePath);
+        return this.out.rmdirSync(relativePath);
         } case 'unlink': {
           instrumentation.unlink++;
           return this.out.unlinkSync(destPath);
         } case 'change': {
           instrumentation.change++;
-          return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+          return this._handleFile(relativePath, srcDir, destDir, entry,  true, instrumentation);
         } case 'create': {
           instrumentation.create++;
-          return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+          return this._handleFile(relativePath, srcDir, destDir, entry,  false, instrumentation);
         } default: {
           instrumentation.other++;
         }
@@ -163,16 +162,22 @@ Filter.prototype.build = function() {
   }, this);
 };
 
-Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, instrumentation) {
+
+Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, isChange, instrumentation) {
+
   if (this.canProcessFile(relativePath)) {
     instrumentation.processed++;
+
     return this.processAndCacheFile(srcDir, destDir, entry, isChange, instrumentation);
   } else {
     instrumentation.linked++;
     if (isChange) {
         this.out.unlinkSync(relativePath);
     }
+    let srcAbsolutePath = this.in[0].resolvePath(relativePath);
+
     return this.out.symlinkSync(this.in[0].resolvePath(relativePath), relativePath);
+    //return this.out.symlinkSyncFromInput(this.in[0], srcAbsolutePath, relativePath);
   }
 };
 
@@ -213,7 +218,7 @@ Filter.prototype.cacheKeyProcessString = function(string, relativePath) {
 
 Filter.prototype.canProcessFile =
     function canProcessFile(relativePath) {
-  return !!this.getDestFilePath(relativePath);
+      return !!this.getDestFilePath(relativePath);
 };
 
 Filter.prototype.getDestFilePath = function(relativePath) {
@@ -223,6 +228,7 @@ Filter.prototype.getDestFilePath = function(relativePath) {
 
   for (var i = 0, ii = this.extensions.length; i < ii; ++i) {
     var ext = this.extensions[i];
+
     if (relativePath.slice(-ext.length - 1) === '.' + ext) {
       if (this.targetExtension != null) {
         relativePath = relativePath.slice(0, -ext.length) + this.targetExtension;
@@ -240,7 +246,8 @@ Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, isChange
 
   return Promise.resolve().
       then(function asyncProcessFile() {
-        return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation);
+
+    return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation);
       }).
       then(undefined,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
@@ -274,10 +281,10 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
 
   instrumentation.processString++;
   var processStringStart = process.hrtime();
-
   var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, instrumentation]);
 
   return string.then(function asyncOutputFilteredFile(outputString) {
+
     instrumentation.processStringTime += nanosecondsSince(processStringStart);
     var destRelativePath = filter.getDestFilePath(relativePath);
 
@@ -302,13 +309,15 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
       this.out.writeFileSync(destRelativePath, outputString, {
         encoding: outputEncoding
       });
+
      } catch(e) {
       // optimistically assume the DIR was patched correctly
-      this.out.mkdirpSync(path.dirname(destRelativePath));
-      this.out.writeFileSync(destRelativePath, outputString, {
+
+     this.out.mkdirpSync(path.dirname(destRelativePath));
+     this.out.writeFileSync(destRelativePath, outputString, {
         encoding: outputEncoding
       });
-    }
+   }
     return outputString;
   }.bind(this));
 };
