@@ -95,17 +95,12 @@ function timeSince(time) {
 Filter.prototype.build = function() {
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
-
-  var prevTime = process.hrtime();
   var instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
-  var walkStart = process.hrtime();
-  var walkDuration = timeSince(walkStart);
   var patches;
 
   if(this._fsFacade) {
     //using change tracking
     patches = this.in[0].changes();
-
   } else  {
     //diffing to find changes, remove this later
     var entries = walkSync.entries(srcDir);
@@ -115,11 +110,7 @@ Filter.prototype.build = function() {
     patches = currentTree.calculatePatch(nextTree);
   }
 
-  console.log("----patches from persistent filter");
-  console.log(patches);
-
   instrumentation.stats.patches = patches.length;
-
   instrumentation.stop();
 
   return heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
@@ -130,8 +121,6 @@ Filter.prototype.build = function() {
       var relativePath = patch[1];
       var entry = patch[2];
       var destPath = this.getDestFilePath(relativePath) || relativePath;
-      var outputFilePath = destDir + '/' + destPath;
-      let srcAbsolutePath = this.in[0].resolvePath(relativePath);
 
       this._logger.debug('[operation:%s] %s', operation, relativePath);
       switch (operation) {
@@ -174,10 +163,7 @@ Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, is
     if (isChange) {
         this.out.unlinkSync(relativePath);
     }
-    let srcAbsolutePath = this.in[0].resolvePath(relativePath);
-
     return this.out.symlinkSync(this.in[0].resolvePath(relativePath), relativePath);
-    //return this.out.symlinkSyncFromInput(this.in[0], srcAbsolutePath, relativePath);
   }
 };
 
@@ -279,7 +265,9 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     encoding: inputEncoding
   });
 
+
   instrumentation.processString++;
+
   var processStringStart = process.hrtime();
   var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, instrumentation]);
 
