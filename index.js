@@ -14,7 +14,6 @@ var md5Hex = require('md5-hex');
 var Processor = require('./lib/processor');
 var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
-var BlankObject = require('blank-object');
 var FSTree = require('fs-tree-diff');
 var heimdall = require('heimdalljs');
 
@@ -83,8 +82,8 @@ function Filter(inputTree, options) {
 
   this.processor.init(this);
 
-  this._canProcessCache = new BlankObject();
-  this._destFilePathCache = new BlankObject();
+  this._canProcessCache = Object.create(null);
+  this._destFilePathCache = Object.create(null);
   this._needsReset = false;
 }
 
