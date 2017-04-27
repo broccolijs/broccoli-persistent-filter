@@ -603,7 +603,7 @@ describe('Filter', function() {
     });
 
     it('initializes cache using ENV variable if present', function() {
-      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'foo-bar-baz-testing-123');
 
       var f = new F(fixturePath('a'), {
@@ -657,7 +657,7 @@ describe('Filter', function() {
     });
 
     it('calls postProcess for persistent cache hits (work is not needed)', function() {
-      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
@@ -689,7 +689,7 @@ describe('Filter', function() {
     });
 
     it('postProcess return value is not used', function() {
-      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
