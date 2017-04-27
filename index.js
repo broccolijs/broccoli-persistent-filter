@@ -3,6 +3,7 @@
 var fs = require('fs');
 var path = require('path');
 var mkdirp = require('mkdirp');
+var rimraf = require('rimraf');
 var Promise = require('rsvp').Promise;
 var Plugin = require('broccoli-plugin');
 var walkSync = require('walk-sync');
@@ -84,6 +85,7 @@ function Filter(inputTree, options) {
 
   this._canProcessCache = new BlankObject();
   this._destFilePathCache = new BlankObject();
+  this._needsReset = false;
 }
 
 function nanosecondsSince(time) {
@@ -97,6 +99,14 @@ function timeSince(time) {
 }
 
 Filter.prototype.build = function() {
+  if (this._needsReset) {
+    this.currentTree = new FSTree();
+    rimraf.sync(this.outputPath);
+    mkdirp.sync(this.outputPath);
+  }
+
+  this._needsReset = true;
+
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
 
@@ -124,45 +134,51 @@ Filter.prototype.build = function() {
   this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
 
   instrumentation.stop();
+  var plugin = this;
 
-  return heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
-    var prevTime = process.hrtime();
+  return new Promise(function(resolve) {
+    resolve(heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
+      var prevTime = process.hrtime();
 
-    var result = mapSeries(patches, function(patch) {
-      var operation = patch[0];
-      var relativePath = patch[1];
-      var entry = patch[2];
-      var outputPath = destDir + '/' + (this.getDestFilePath(relativePath) || relativePath);
-      var outputFilePath = outputPath;
+      var result = mapSeries(patches, function(patch) {
+        var operation = patch[0];
+        var relativePath = patch[1];
+        var entry = patch[2];
+        var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath) || relativePath);
+        var outputFilePath = outputPath;
 
-      this._logger.debug('[operation:%s] %s', operation, relativePath);
+        plugin._logger.debug('[operation:%s] %s', operation, relativePath);
 
-      switch (operation) {
-        case 'mkdir': {
-          instrumentation.mkdir++;
-          return fs.mkdirSync(outputPath);
-        } case 'rmdir': {
-          instrumentation.rmdir++;
-          return fs.rmdirSync(outputPath);
-        } case 'unlink': {
-          instrumentation.unlink++;
-          return fs.unlinkSync(outputPath);
-        } case 'change': {
-          instrumentation.change++;
-          return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
-        } case 'create': {
-          instrumentation.create++;
-          return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
-        } default: {
-          instrumentation.other++;
+        switch (operation) {
+          case 'mkdir': {
+            instrumentation.mkdir++;
+            return fs.mkdirSync(outputPath);
+          } case 'rmdir': {
+            instrumentation.rmdir++;
+            return fs.rmdirSync(outputPath);
+          } case 'unlink': {
+            instrumentation.unlink++;
+            return fs.unlinkSync(outputPath);
+          } case 'change': {
+            instrumentation.change++;
+            return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+          } case 'create': {
+            instrumentation.create++;
+            return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+          } default: {
+            instrumentation.other++;
+          }
         }
-      }
-    }, this);
+      });
 
-    this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+      plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
 
+      return result;
+    }));
+  }).then(function(result) {
+    plugin._needsReset = false;
     return result;
-  }, this);
+  });
 };
 
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, instrumentation) {

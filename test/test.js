@@ -6,6 +6,7 @@ var chaiAsPromised = require('chai-as-promised');
 var sinonChai = require('sinon-chai');
 var chaiFiles = require('chai-files');
 var file = chaiFiles.file;
+var co = require('co');
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
@@ -166,6 +167,70 @@ describe('Filter', function() {
       }).finally(function() {
         fs.writeFileSync(originalFilePath, originalFileContent);
       });
+    });
+
+    describe('mid build failure', function() {
+      var testHelpers = require('broccoli-test-helper');
+      var createBuilder = testHelpers.createBuilder;
+      var createTempDir = testHelpers.createTempDir;
+
+      let input;
+      let output;
+      let subject;
+
+      function Plugin(inputNode, options) {
+        if (!this) {
+          return new Plugin(inputNode, options);
+        }
+
+        this.shouldFail = true;
+        Filter.call(this, inputNode, options);
+      }
+
+      inherits(Plugin, Filter);
+
+      Plugin.prototype.processString = function(content) {
+        let shouldFail = this.shouldFail;
+        this.shouldFail = false;
+        if (shouldFail) {
+          throw new Error('first build happens to fail');
+        }
+
+        return content;
+      };
+
+      beforeEach(co.wrap(function* () {
+        input = yield createTempDir();
+        subject = new Plugin(input.path());
+        output = createBuilder(subject);
+      }));
+
+      afterEach(co.wrap(function* () {
+        yield input.dispose();
+        yield output.dispose();
+      }));
+
+      it('works', co.wrap(function* () {
+        input.write({
+          'index.js': 'console.log("hi")'
+        });
+
+        let didFail = false;
+        try {
+          yield output.build();
+        } catch(error) {
+          didFail = true;
+          expect(error.message).to.contain('first build happens to fail');
+        }
+        expect(didFail).to.eql(true);
+        expect(output.read(), 'to be empty').to.deep.equal({});
+
+        yield output.build();
+
+        expect(output.read(), 'to no long be empty').to.deep.equal({
+          'index.js': 'console.log("hi")'
+        });
+      }));
     });
 
     describe('with extensions & targetExtension', function() {
