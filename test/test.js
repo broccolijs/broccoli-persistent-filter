@@ -215,7 +215,7 @@ describe('Filter', function() {
           // rebuild 0 files
           expect(awk.processString.callCount).to.equal(0);
           someDirPath = awk.inputPaths[0] + '/fooo/';
-          fs.mkdir(someDirPath);
+          fs.mkdirSync(someDirPath);
           return results.builder();
         }).then(function(results) {
           var awk = results.subject;
@@ -239,7 +239,7 @@ describe('Filter', function() {
             fs.writeFileSync(originalFilePath, originalFileContent);
           } catch(e) { }
           try {
-            fs.rmdir(someDirPath);
+            fs.rmdirSync(someDirPath);
           } catch(e) { }
 
           try {
