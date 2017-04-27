@@ -6,6 +6,7 @@ var chaiAsPromised = require('chai-as-promised');
 var sinonChai = require('sinon-chai');
 var chaiFiles = require('chai-files');
 var file = chaiFiles.file;
+var co = require('co');
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
@@ -116,7 +117,7 @@ describe('Filter', function() {
   });
 
   describe('on rebuild', function() {
-    it('calls processString only if work is needed', function() {
+    it('calls processString a if work is needed', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
         sinon.spy(awk, 'processString');
         sinon.spy(awk, 'postProcess');
@@ -146,7 +147,7 @@ describe('Filter', function() {
         return results.builder();
       }).then(function(results) {
         var awk = results.subject;
-        // rebuild only 1 file
+        // rebuild 1 file
         expect(awk.processString.callCount).to.equal(1);
         expect(awk.postProcess.callCount).to.equal(1);
 
@@ -158,7 +159,7 @@ describe('Filter', function() {
         return results.builder();
       }).then(function(results) {
         var awk = results.subject;
-        // rebuild only 0 files
+        // rebuild 0 files
         expect(awk.processString.callCount).to.equal(0);
         expect(awk.postProcess.callCount).to.equal(0);
 
@@ -168,8 +169,72 @@ describe('Filter', function() {
       });
     });
 
+    describe('mid build failure', function() {
+      var testHelpers = require('broccoli-test-helper');
+      var createBuilder = testHelpers.createBuilder;
+      var createTempDir = testHelpers.createTempDir;
+
+      let input;
+      let output;
+      let subject;
+
+      function Plugin(inputNode, options) {
+        if (!this) {
+          return new Plugin(inputNode, options);
+        }
+
+        this.shouldFail = true;
+        Filter.call(this, inputNode, options);
+      }
+
+      inherits(Plugin, Filter);
+
+      Plugin.prototype.processString = function(content) {
+        let shouldFail = this.shouldFail;
+        this.shouldFail = false;
+        if (shouldFail) {
+          throw new Error('first build happens to fail');
+        }
+
+        return content;
+      };
+
+      beforeEach(co.wrap(function* () {
+        input = yield createTempDir();
+        subject = new Plugin(input.path());
+        output = createBuilder(subject);
+      }));
+
+      afterEach(co.wrap(function* () {
+        yield input.dispose();
+        yield output.dispose();
+      }));
+
+      it('works', co.wrap(function* () {
+        input.write({
+          'index.js': 'console.log("hi")'
+        });
+
+        let didFail = false;
+        try {
+          yield output.build();
+        } catch(error) {
+          didFail = true;
+          expect(error.message).to.contain('first build happens to fail');
+        }
+        expect(didFail).to.eql(true);
+        expect(output.read(), 'to be empty').to.deep.equal({});
+
+        yield output.build();
+
+        expect(output.read(), 'to no long be empty').to.deep.equal({
+          'index.js': 'console.log("hi")'
+        });
+      }));
+    });
+
     describe('with extensions & targetExtension', function() {
-      it('calls processString only if work is needed', function() {
+      it('calls processString if work is needed', function() {
         var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
           sinon.spy(awk, 'processString');
           return awk;
@@ -212,10 +277,10 @@ describe('Filter', function() {
           return results.builder();
         }).then(function(results) {
           var awk = results.subject;
-          // rebuild only 0 files
+          // rebuild 0 files
           expect(awk.processString.callCount).to.equal(0);
           someDirPath = awk.inputPaths[0] + '/fooo/';
-          fs.mkdir(someDirPath);
+          fs.mkdirSync(someDirPath);
           return results.builder();
         }).then(function(results) {
           var awk = results.subject;
@@ -239,7 +304,7 @@ describe('Filter', function() {
             fs.writeFileSync(originalFilePath, originalFileContent);
           } catch(e) { }
           try {
-            fs.rmdir(someDirPath);
+            fs.rmdirSync(someDirPath);
           } catch(e) { }
 
           try {
@@ -403,7 +468,7 @@ describe('Filter', function() {
     });
   });
 
-  it('should processString only when canProcessFile returns true', function() {
+  it('should processString when canProcessFile returns true', function() {
 
     var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       sinon.spy(awk, 'processString');
@@ -603,7 +668,7 @@ describe('Filter', function() {
     });
 
     it('initializes cache using ENV variable if present', function() {
-      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'foo-bar-baz-testing-123');
 
       var f = new F(fixturePath('a'), {
@@ -657,7 +722,7 @@ describe('Filter', function() {
     });
 
     it('calls postProcess for persistent cache hits (work is not needed)', function() {
-      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
@@ -689,7 +754,7 @@ describe('Filter', function() {
     });
 
     it('postProcess return value is not used', function() {
-      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpDir(),
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
