@@ -1,38 +1,37 @@
 'use strict';
 
-var chai = require('chai');
-var expect = chai.expect;
-var chaiAsPromised = require('chai-as-promised');
-var sinonChai = require('sinon-chai');
-var chaiFiles = require('chai-files');
-var file = chaiFiles.file;
-var co = require('co');
+const chai = require('chai');
+const expect = chai.expect;
+const chaiAsPromised = require('chai-as-promised');
+const sinonChai = require('sinon-chai');
+const chaiFiles = require('chai-files');
+const file = chaiFiles.file;
+const co = require('co');
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
 chai.use(chaiFiles);
 
-var sinon = require('sinon');
-var broccoliTestHelpers = require('broccoli-test-helpers');
+const sinon = require('sinon');
+const broccoliTestHelpers = require('broccoli-test-helpers');
 
-var makeTestHelper = broccoliTestHelpers.makeTestHelper;
-var cleanupBuilders = broccoliTestHelpers.cleanupBuilders;
+const makeTestHelper = broccoliTestHelpers.makeTestHelper;
+const cleanupBuilders = broccoliTestHelpers.cleanupBuilders;
 
-var inherits = require('util').inherits;
-var fs = require('fs');
-var mkdirp = require('mkdirp');
-var path = require('path');
-var Filter = require('../');
-var rimraf = require('rimraf').sync;
-var os = require('os');
-var Promise = require('rsvp').Promise;
+const inherits = require('util').inherits;
+const fs = require('fs');
+const mkdirp = require('mkdirp');
+const path = require('path');
+const Filter = require('../');
+const rimraf = require('rimraf').sync;
+const os = require('os');
 
-var ReplaceFilter = require('./helpers/replacer');
-var IncompleteFilter = require('./helpers/incomplete');
-var MyFilter = require('./helpers/simple');
-var Rot13Filter = require('./helpers/rot13');
+const ReplaceFilter = require('./helpers/replacer');
+const IncompleteFilter = require('./helpers/incomplete');
+const MyFilter = require('./helpers/simple');
+const Rot13Filter = require('./helpers/rot13');
 
-var rootFixturePath = path.join(__dirname, 'fixtures');
+const rootFixturePath = path.join(__dirname, 'fixtures');
 
 function fixturePath(relativePath) {
   return path.join(rootFixturePath, relativePath);
@@ -53,49 +52,34 @@ describe('Filter', function() {
   });
 
   function write(relativePath, contents, _encoding) {
-    var encoding = _encoding === undefined ? 'utf8' : _encoding;
+    let encoding = _encoding === undefined ? 'utf8' : _encoding;
 
     mkdirp.sync(path.dirname(relativePath));
     fs.writeFileSync(relativePath, contents, {
-      encoding: encoding
+      encoding
     });
   }
 
   it('throws if called as a function', function() {
-    expect(function() {
-      return Filter();
-    }).to.throw(TypeError, /abstract class and must be sub-classed/);
+    expect(() => Filter()).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
   it('throws if called on object which does not a child class of Filter', function() {
-    expect(function() {
-      return Filter.call({});
-    }).to.throw(TypeError, /abstract class and must be sub-classed/);
-
-    expect(function() {
-      return Filter.call([]);
-    }).to.throw(TypeError, /abstract class and must be sub-classed/);
-
-    expect(function() {
-      return Filter.call(global);
-    }).to.throw(TypeError, /abstract class and must be sub-classed/);
+    expect(() => Filter.call({})).to.throw(TypeError, /abstract class and must be sub-classed/);
+    expect(() => Filter.call([])).to.throw(TypeError, /abstract class and must be sub-classed/);
+    expect(() => Filter.call(global)).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
   it('throws if base Filter class is new-ed', function() {
-    expect(function() {
-      return new Filter();
-    }).to.throw(TypeError, /abstract class and must be sub-classed/);
+    expect(() => new Filter()).to.throw(TypeError, /abstract class and must be sub-classed/);
   });
 
   it('throws if `processString` is not implemented', function() {
-    expect(function() {
-      new IncompleteFilter('.').processString('foo', 'fake_path');
-    }).to.throw(Error, /must implement/);
+    expect(() => new IncompleteFilter('.').processString('foo', 'fake_path')).to.throw(Error, /must implement/);
   });
 
   it('processes files with extensions included in `extensions` list by default', function() {
-
-   var filter = MyFilter('.', { extensions: ['c', 'cc', 'js']});
+   let filter = MyFilter('.', { extensions: ['c', 'cc', 'js']});
 
     expect(filter.canProcessFile('foo.c')).to.equal(true);
     expect(filter.canProcessFile('test.js')).to.equal(true);
@@ -104,8 +88,7 @@ describe('Filter', function() {
   });
 
   it('replaces matched extension with targetExtension by default', function() {
-
-    var filter = MyFilter('.', {
+    let filter = MyFilter('.', {
       extensions: ['c', 'cc', 'js'],
       targetExtension: 'zebra'
     });
@@ -117,25 +100,26 @@ describe('Filter', function() {
   });
 
   describe('on rebuild', function() {
-    it('calls processString a if work is needed', function() {
-      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+    it('calls processString a if work is needed', co.wrap(function* () {
+      let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
         sinon.spy(awk, 'processString');
         sinon.spy(awk, 'postProcess');
         return awk;
       });
-      var originalFileContent;
-      var originalFilePath;
+      let originalFileContent;
+      let originalFilePath;
+      let awk;
 
-      return builder('dir').then(function(results) {
-        var awk = results.subject;
+      try {
+        let results = yield builder('dir');
+        awk = results.subject;
         // first time, build everything
         expect(awk.processString.callCount).to.equal(3);
         expect(awk.postProcess.callCount).to.equal(3);
         awk.processString.callCount = 0;
         awk.postProcess.callCount = 0;
-        return results.builder();
-      }).then(function(results) {
-        var awk = results.subject;
+        results = yield results.builder();
+        awk = results.subject;
         // rebuild, but no changes (build nothing);
         expect(awk.processString.callCount).to.equal(0);
         expect(awk.postProcess.callCount).to.equal(0);
@@ -144,9 +128,8 @@ describe('Filter', function() {
         originalFileContent = fs.readFileSync(originalFilePath);
         fs.writeFileSync(awk.inputPaths[0] + '/a/README.md', 'OMG');
 
-        return results.builder();
-      }).then(function(results) {
-        var awk = results.subject;
+        results = yield results.builder();
+        awk = results.subject;
         // rebuild 1 file
         expect(awk.processString.callCount).to.equal(1);
         expect(awk.postProcess.callCount).to.equal(1);
@@ -156,23 +139,22 @@ describe('Filter', function() {
 
         fs.unlinkSync(originalFilePath);
 
-        return results.builder();
-      }).then(function(results) {
-        var awk = results.subject;
+        results = yield results.builder();
+        awk = results.subject;
         // rebuild 0 files
         expect(awk.processString.callCount).to.equal(0);
         expect(awk.postProcess.callCount).to.equal(0);
 
         awk.postProcess.callCount = 0;
-      }).finally(function() {
+      } finally {
         fs.writeFileSync(originalFilePath, originalFileContent);
-      });
-    });
+      }
+    }));
 
     describe('mid build failure', function() {
-      var testHelpers = require('broccoli-test-helper');
-      var createBuilder = testHelpers.createBuilder;
-      var createTempDir = testHelpers.createTempDir;
+      let testHelpers = require('broccoli-test-helper');
+      let createBuilder = testHelpers.createBuilder;
+      let createTempDir = testHelpers.createTempDir;
 
       let input;
       let output;
@@ -234,28 +216,32 @@ describe('Filter', function() {
     });
 
     describe('with extensions & targetExtension', function() {
-      it('calls processString if work is needed', function() {
-        var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+      it('calls processString if work is needed', co.wrap(function* () {
+        let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
           sinon.spy(awk, 'processString');
           return awk;
         });
-        var originalFileContent;
-        var originalFilePath;
-        var originalJSFileContent;
-        var originalJSFilePath;
-        var someDirPath;
+        let originalFileContent;
+        let originalFilePath;
+        let originalJSFileContent;
+        let originalJSFilePath;
+        let someDirPath;
+        let awk;
 
-        return builder('dir', {
-          extensions: ['js'],
-          targetExtension: 'OMG'
-        }).then(function(results) {
-          var awk = results.subject;
+        try {
+          let results = yield builder('dir', {
+            extensions: ['js'],
+            targetExtension: 'OMG'
+          });
+
+          awk = results.subject;
           // first time, build everything
           expect(awk.processString.callCount).to.equal(2);
           awk.processString.callCount = 0;
-          return results.builder();
-        }).then(function(results) {
-          var awk = results.subject;
+
+          results = yield results.builder();
+
+          awk = results.subject;
           // rebuild, but no changes (build nothing);
           expect(awk.processString.callCount).to.equal(0);
 
@@ -265,25 +251,25 @@ describe('Filter', function() {
 
           expect(file(results.directory + '/a/foo.OMG')).to.exist;
 
-          return results.builder();
-        }).then(function(results) {
-          var awk = results.subject;
+          results = yield results.builder();
+
+          awk = results.subject;
           // rebuild 0 files, changed file does not match extensions
           expect(awk.processString.callCount).to.equal(0);
           awk.processString.callCount = 0;
-
           fs.unlinkSync(originalFilePath);
 
-          return results.builder();
-        }).then(function(results) {
-          var awk = results.subject;
+          results = yield results.builder();
+
+          awk = results.subject;
           // rebuild 0 files
           expect(awk.processString.callCount).to.equal(0);
           someDirPath = awk.inputPaths[0] + '/fooo/';
           fs.mkdirSync(someDirPath);
-          return results.builder();
-        }).then(function(results) {
-          var awk = results.subject;
+
+          results = yield results.builder();
+
+          awk = results.subject;
           // rebuild, but no changes (build nothing);
           expect(awk.processString.callCount).to.equal(0);
 
@@ -291,15 +277,16 @@ describe('Filter', function() {
           originalJSFileContent = fs.readFileSync(originalJSFilePath);
           fs.writeFileSync(originalJSFilePath, 'OMG');
 
-          return results.builder();
-        }).then(function(results) {
-          var awk = results.subject;
+          results = yield results.builder();
+
+          awk = results.subject;
           // rebuild, but no changes (build nothing);
           expect(awk.processString.callCount).to.equal(1);
           expect(fs.readFileSync(results.directory + '/a/foo.OMG', 'UTF-8')).to.eql('BZT');
 
-          return results.builder();
-        }).finally(function() {
+          yield results.builder();
+
+        } finally {
           try {
             fs.writeFileSync(originalFilePath, originalFileContent);
           } catch(e) { }
@@ -310,24 +297,26 @@ describe('Filter', function() {
           try {
             fs.writeFileSync(originalJSFilePath, originalJSFileContent);
           } catch(e) { }
-        });
-      });
+        }
+      }));
     });
 
-    it('handles renames', function() {
-      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+    it('handles renames', co.wrap(function* () {
+      let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
         sinon.spy(awk, 'processString');
         return awk;
       });
 
-      var filePathPrevious;
-      var filePathNext;
+      let filePathPrevious;
+      let filePathNext;
 
-      return builder('dir', {
-        extensions: ['md'],
-        targetExtension: ['foo.md']
-      }).then(function(results) {
-        var awk = results.subject;
+      try {
+        let results = yield builder('dir', {
+          extensions: ['md'],
+          targetExtension: ['foo.md']
+        });
+
+        let awk = results.subject;
         // first time, build everything
         expect(awk.processString.callCount).to.equal(1);
         awk.processString.callCount = 0;
@@ -338,8 +327,8 @@ describe('Filter', function() {
         fs.writeFileSync(filePathNext, fs.readFileSync(filePathPrevious));
         fs.unlinkSync(filePathPrevious);
 
-        return results.builder();
-      }).then(function(results) {
+        results = yield results.builder();
+
         expect(results.files).to.eql([
           'a/',
           'a/README-renamed.foo.md',
@@ -347,151 +336,148 @@ describe('Filter', function() {
           'a/bar/bar.js',
           'a/foo.js'
         ]);
-      }).finally(function() {
+      } finally {
         fs.writeFileSync(filePathPrevious, fs.readFileSync(filePathNext));
         fs.unlinkSync(filePathNext);
-      });
-    });
+      }
+    }));
 
-    it('preserves mtimes if neither content did not actually change', function() {
-      var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+    it('preserves mtimes if neither content did not actually change', co.wrap(function* () {
+      let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
         sinon.spy(awk, 'processString');
         return awk;
       });
 
-      var stat;
-      var filePath;
+      let stat;
+      let filePath;
 
-      return builder('dir', {
+      let results = yield builder('dir', {
         extensions: ['md']
-      }).then(function(results) {
-        var awk = results.subject;
-        // first time, build everything
-        expect(awk.processString.callCount).to.equal(1);
-        awk.processString.callCount = 0;
-        filePath = awk.inputPaths[0] + '/a/README.md';
-
-        fs.writeFileSync(filePath, fs.readFileSync(filePath));
-        stat = fs.statSync(filePath);
-
-        return results.builder();
-      }).then(function(results) {
-        var awk = results.subject;
-        var afterRebuildStat = fs.statSync(filePath);
-
-        expect(awk.processString).to.have.been.calledOnce;
-        // rebuild changed file
-        expect(awk.processString).to.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
-
-        // although file was "rebuilt", no observable difference can be observed
-
-        expect(stat.mode).to.equal(afterRebuildStat.mode);
-        expect(stat.size).to.equal(afterRebuildStat.size);
-        expect(stat.mtime.getTime()).to.equal(afterRebuildStat.mtime.getTime());
       });
-    });
+
+      let awk = results.subject;
+      // first time, build everything
+      expect(awk.processString.callCount).to.equal(1);
+      awk.processString.callCount = 0;
+      filePath = awk.inputPaths[0] + '/a/README.md';
+
+      fs.writeFileSync(filePath, fs.readFileSync(filePath));
+      stat = fs.statSync(filePath);
+
+      results = yield results.builder();
+
+      awk = results.subject;
+      let afterRebuildStat = fs.statSync(filePath);
+
+      expect(awk.processString).to.have.been.calledOnce;
+      // rebuild changed file
+      expect(awk.processString).to.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
+
+      // although file was "rebuilt", no observable difference can be observed
+      expect(stat.mode).to.equal(afterRebuildStat.mode);
+      expect(stat.size).to.equal(afterRebuildStat.size);
+      expect(stat.mtime.getTime()).to.equal(afterRebuildStat.mtime.getTime());
+    }));
   });
 
-  it('targetExtension work for no extensions', function() {
-    var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+  it('targetExtension work for no extensions', co.wrap(function* () {
+    let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
       sinon.spy(awk, 'processString');
       return awk;
     });
 
-    return builder('dir', {
+    let results = yield builder('dir', {
       targetExtension: 'foo',
       extensions: []
-    }).then(function(results) {
-      var awk = results.subject;
-
-      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
-      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
-
-      expect(awk.processString.callCount).to.equal(0);
     });
-  });
 
-  it('targetExtension work for single extensions', function() {
-    var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+    let awk = results.subject;
+
+    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+    expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
+
+    expect(awk.processString.callCount).to.equal(0);
+  }));
+
+  it('targetExtension work for single extensions', co.wrap(function* () {
+    let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
       sinon.spy(awk, 'processString');
       return awk;
     });
 
-    return builder('dir', {
+    let results = yield builder('dir', {
       targetExtension: 'foo',
       extensions: ['js']
-    }).then(function(results) {
-      var awk = results.subject;
-
-      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
-      expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
-
-      expect(awk.processString.callCount).to.equal(2);
     });
-  });
 
-  it('targetExtension work for multiple extensions', function() {
-    var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
+    let awk = results.subject;
+
+    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+    expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+
+    expect(awk.processString.callCount).to.equal(2);
+  }));
+
+  it('targetExtension work for multiple extensions', co.wrap(function* () {
+    let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
       sinon.spy(awk, 'processString');
       return awk;
     });
 
-    return builder('dir', {
+    let results = yield builder('dir', {
       targetExtension: 'foo',
       extensions: ['js','md']
-    }).then(function(results) {
-      var awk = results.subject;
-
-      expect(file(results.directory + '/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
-      expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
-
-      expect(awk.processString.callCount).to.equal(3);
     });
-  });
 
-  it('handles directories that older versions of walkSync do not sort lexicographically', function() {
-    var builder = makeBuilder(Rot13Filter, fixturePath('b'), function(awk) {
+    let awk = results.subject;
+
+    expect(file(results.directory + '/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
+    expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+
+    expect(awk.processString.callCount).to.equal(3);
+  }));
+
+  it('handles directories that older versions of walkSync do not sort lexicographically', co.wrap(function* () {
+    let builder = makeBuilder(Rot13Filter, fixturePath('b'), awk => {
       sinon.spy(awk, 'processString');
       return awk;
     });
 
-    return builder('dir', {
+    let results = yield builder('dir', {
       targetExtension: 'foo',
       extensions: ['js']
-    }).then(function(results) {
-      var awk = results.subject;
-
-      expect(file(results.directory + '/foo.md')).to.equal('Nicest cats in need of homes');
-      expect(file(results.directory + '/foo/bar.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
-
-      expect(awk.processString.callCount).to.equal(1);
     });
-  });
 
-  it('should processString when canProcessFile returns true', function() {
+    let awk = results.subject;
 
-    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+    expect(file(results.directory + '/foo.md')).to.equal('Nicest cats in need of homes');
+    expect(file(results.directory + '/foo/bar.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+
+    expect(awk.processString.callCount).to.equal(1);
+  }));
+
+  it('should processString when canProcessFile returns true', co.wrap(function* () {
+    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
       sinon.spy(awk, 'processString');
       return awk;
     });
 
-    return builder('dir', {
+    let results = yield builder('dir', {
       glob: '**/*.md',
       search: 'dogs',
       replace: 'cats',
       targetExtension: 'foo'
-    }).then(function(results) {
-      var awk = results.subject;
-
-      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
-      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
-      expect(awk.processString.callCount).to.equal(1);
     });
-  });
 
-  it('should processString and postProcess', function() {
+    let awk = results.subject;
 
-    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
+    expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
+    expect(awk.processString.callCount).to.equal(1);
+  }));
+
+  it('should processString and postProcess', co.wrap(function* () {
+    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
       awk.postProcess = function(object) {
         expect(object.output).to.exist;
 
@@ -506,23 +492,21 @@ describe('Filter', function() {
       return awk;
     });
 
-    return builder('dir', {
+    let results = yield builder('dir', {
       search: 'dogs',
       replace: 'cats'
-    }).then(function(results) {
-      var awk = results.subject;
-
-      expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
-      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
-
-      expect(awk.processString.callCount).to.equal(3);
-      expect(awk.postProcess.callCount).to.equal(3);
     });
-  });
+    let awk = results.subject;
+
+    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+    expect(file(results.directory + '/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+
+    expect(awk.processString.callCount).to.equal(3);
+    expect(awk.postProcess.callCount).to.equal(3);
+  }));
 
   it('complains if canProcessFile is true but getDestFilePath is null', function() {
-
-    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
       awk.canProcessFile = function() {
         // We cannot return `true` here unless `getDestFilePath` also returns
         // a path
@@ -538,68 +522,65 @@ describe('Filter', function() {
     })).to.eventually.be.rejectedWith(Error, /getDestFilePath.* is null/);
   });
 
-  it('purges cache', function() {
-    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+  it('purges cache', co.wrap(function *() {
+    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
       return awk;
     });
 
-    var fileForRemoval = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
+    let fileForRemoval = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
 
-    return builder('dir', {
+    let results = yield builder('dir', {
       glob: '**/*.md',
       search: 'dogs',
       replace: 'cats'
-    }).then(function(results) {
-      expect(file(fileForRemoval)).to.exist;
-      rimraf(fileForRemoval);
-
-      expect(file(fileForRemoval)).to.not.exist;
-      expect(file(results.directory + '/a/README.md')).to.exist;
-
-      return results.builder();
-    }).then(function(results) {
-      expect(file(results.directory + '/a/README.md')).to.not.exist;
-      expect(file(fileForRemoval)).to.not.exist;
-      return results;
-    }).finally(function() {
-      write(fileForRemoval, 'Nicest cats in need of homes');
-    }).then(function(results) {
-      expect(file(fileForRemoval)).to.exist;
-      return results.builder();
-    }).then(function(results) {
-      expect(file(results.directory + '/a/foo.js')).to.exist;
-    });
-  });
-
-  it('replaces stale entries', function() {
-    var fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
-
-    var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
-      return awk;
     });
 
-    return builder('dir', {
+    expect(file(fileForRemoval)).to.exist;
+    rimraf(fileForRemoval);
+
+    expect(file(fileForRemoval)).to.not.exist;
+    expect(file(results.directory + '/a/README.md')).to.exist;
+
+    results = yield results.builder();
+
+    expect(file(results.directory + '/a/README.md')).to.not.exist;
+    expect(file(fileForRemoval)).to.not.exist;
+
+    write(fileForRemoval, 'Nicest cats in need of homes');
+    expect(file(fileForRemoval)).to.exist;
+
+    results = yield  results.builder();
+
+    expect(file(results.directory + '/a/foo.js')).to.exist;
+  }));
+
+  it('replaces stale entries', co.wrap(function* () {
+    let fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
+
+    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
+
+    let results = yield builder('dir', {
       glob: '**/*.md',
       search: 'dogs',
       replace: 'cats'
-    }).then(function(results) {
-      expect(file(fileForChange)).to.exist;
-
-      write(fileForChange, 'such changes');
-
-      expect(file(fileForChange)).to.exist;
-
-      return results.builder();
-    }).then(function() {
-      expect(file(fileForChange)).to.exist;
-
-      write(fileForChange, 'such changes');
-
-      expect(file(fileForChange)).to.exist;
-    }).then(function() {
-      write(fileForChange, 'Nicest cats in need of homes');
     });
-  });
+
+    expect(file(fileForChange)).to.exist;
+
+    write(fileForChange, 'such changes');
+
+    expect(file(fileForChange)).to.exist;
+
+    results = yield results.builder();
+
+    expect(file(fileForChange)).to.exist;
+
+    write(fileForChange, 'such changes');
+
+    expect(file(fileForChange)).to.exist;
+
+    write(fileForChange, 'Nicest cats in need of homes');
+  }));
 
   it('does not overwrite core options if they are not present', function() {
     function F(inputTree, options) {
@@ -659,7 +640,7 @@ describe('Filter', function() {
     });
 
     it('initializes cache', function() {
-      var f = new F(fixturePath('a'), {
+      let f = new F(fixturePath('a'), {
         persist: true
       });
 
@@ -671,7 +652,7 @@ describe('Filter', function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'foo-bar-baz-testing-123');
 
-      var f = new F(fixturePath('a'), {
+      let f = new F(fixturePath('a'), {
         persist: true
       });
 
@@ -694,39 +675,37 @@ describe('Filter', function() {
     });
 
     it('`cacheKeyProcessString` return correct first level file cache', function() {
-      var f = new F(fixturePath('a'), { persist: true });
+      let f = new F(fixturePath('a'), { persist: true });
 
       expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).
         to.eql('272ebac734fa8949ba2aa803f332ec5b');
     });
 
-    it('properly reads the file tree', function() {
-      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
-        return awk;
-      });
+    it('properly reads the file tree', co.wrap(function* () {
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
 
-      return builder('dir', {
+      let results = yield builder('dir', {
         persist: true,
         glob: '**/*.md',
         search: 'dogs',
         replace: 'cats'
-      }).then(function(results) {
-        expect(results.files).to.deep.eql([
-          'a/',
-          'a/README.md',
-          'a/bar/',
-          'a/bar/bar.js',
-          'a/foo.js'
-        ]);
       });
-    });
 
-    it('calls postProcess for persistent cache hits (work is not needed)', function() {
+      expect(results.files).to.deep.eql([
+        'a/',
+        'a/README.md',
+        'a/bar/',
+        'a/bar/bar.js',
+        'a/foo.js'
+      ]);
+    }));
+
+    it('calls postProcess for persistent cache hits (work is not needed)', co.wrap(function* () {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
-                                                                    'process-cache-string-tests');
+        'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
-      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
         awk.postProcess = function(result) {
           expect(result.output).to.exist;
           return result;
@@ -738,27 +717,26 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persist: true }).then(function(results) {
-        var awk = results.subject;
-        // first time, build everything
-        expect(awk.processString.callCount).to.equal(3);
-        expect(awk.postProcess.callCount).to.equal(3);
-      }).then(function() {
-        return builder('dir', { persist: true });
-      }).then(function(results) {
-        var awk = results.subject;
-        // second instance, hits cache
-        expect(awk.processString.callCount).to.equal(0);
-        expect(awk.postProcess.callCount).to.equal(3);
-      });
-    });
+      let results = yield builder('dir', { persist: true });
+      let awk = results.subject;
 
-    it('postProcess return value is not used', function() {
+      // first time, build everything
+      expect(awk.processString.callCount).to.equal(3);
+      expect(awk.postProcess.callCount).to.equal(3);
+
+      results = yield  builder('dir', { persist: true });
+      awk = results.subject;
+      // second instance, hits cache
+      expect(awk.processString.callCount).to.equal(0);
+      expect(awk.postProcess.callCount).to.equal(3);
+    }));
+
+    it('postProcess return value is not used', co.wrap(function* () {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
-                                                                    'process-cache-string-tests');
+        'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
-      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
         awk.postProcess = function(result) {
           expect(result.output).to.exist;
 
@@ -770,14 +748,11 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persist: true }).then(function(/*results*/) {
-        // do nothing, just kicked off to warm the persistent cache
-      }).then(function() {
-        return builder('dir', { persist: true });
-      }).then(function(results) {
-        expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
-      });
-    });
+      yield builder('dir', { persist: true });
+      // do nothing, just kicked off to warm the persistent cache
+      let results = yield builder('dir', { persist: true });
+      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+    }));
   });
 
   describe('processFile', function() {
@@ -791,8 +766,8 @@ describe('Filter', function() {
       fs.writeFileSync.restore();
     });
 
-    it('should work if `processString` returns a Promise', function() {
-      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+    it('should work if `processString` returns a Promise', co.wrap(function* () {
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
         awk.processor.processString = function() {
           return Promise.resolve('a promise is a promise');
         };
@@ -800,35 +775,33 @@ describe('Filter', function() {
         return awk;
       });
 
-      return builder('dir', { persistent: true }).then(function(results) {
-        expect(file(results.directory + '/a/foo.js')).to.equal('a promise is a promise');
-      });
-    });
+      let results = yield builder('dir', { persistent: true });
+      expect(file(results.directory + '/a/foo.js')).to.equal('a promise is a promise');
+    }));
 
-    it('does not effect the current cwd', function() {
-      var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
+    it('does not effect the current cwd', co.wrap(function* () {
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
         sinon.spy(awk, 'canProcessFile');
         return awk;
       });
 
-      return builder('dir', {
+      let results = yield builder('dir', {
         glob: '**/*.js',
         search: 'dogs',
         replace: 'cats'
-      }).then(function(results) {
-        var a = path.join(process.cwd(), 'a');
-
-        expect(fs.mkdirSync.calledWith(a, 493)).to.eql(false);
-        expect(fs.mkdirSync.calledWith(path.join(a, 'bar'), 493)).to.eql(false);
-
-        expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
-                                           'Nicest dogs in need of homes')).to.eql(false);
-
-        return results.builder();
-      }).then(function() {
-        expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
-                                           'Nicest dogs in need of homes')).to.eql(false);
       });
-    });
+
+      let a = path.join(process.cwd(), 'a');
+
+      expect(fs.mkdirSync.calledWith(a, 493)).to.eql(false);
+      expect(fs.mkdirSync.calledWith(path.join(a, 'bar'), 493)).to.eql(false);
+
+      expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
+        'Nicest dogs in need of homes')).to.eql(false);
+
+      yield results.builder();
+      expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
+        'Nicest dogs in need of homes')).to.eql(false);
+    }));
   });
 });
