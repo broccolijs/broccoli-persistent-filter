@@ -1,7 +1,6 @@
 # broccoli-persistent-filter
 
 [![Greenkeeper badge](https://badges.greenkeeper.io/stefanpenner/broccoli-persistent-filter.svg)](https://greenkeeper.io/)
-
 [![Build Status](https://travis-ci.org/stefanpenner/broccoli-persistent-filter.svg?branch=master)](https://travis-ci.org/stefanpenner/broccoli-persistent-filter)
 [![Build status](https://ci.appveyor.com/api/projects/status/gvt0rheb1c2c4jwd/branch/master?svg=true)](https://ci.appveyor.com/project/embercli/broccoli-persistent-filter/branch/master)
 
