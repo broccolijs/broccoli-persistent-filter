@@ -107,7 +107,7 @@ Filter.prototype.build = function() {
   var entries = walkSync.entries(srcDir);
   var walkDuration = timeSince(walkStart);
 
-  var nextTree = new FSTree.fromEntries(entries);
+  var nextTree = FSTree.fromEntries(entries);
   var currentTree = this.currentTree;
 
   this.currentTree = nextTree;
