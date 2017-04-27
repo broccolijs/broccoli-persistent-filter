@@ -116,7 +116,7 @@ describe('Filter', function() {
   });
 
   describe('on rebuild', function() {
-    it('calls processString only if work is needed', function() {
+    it('calls processString a if work is needed', function() {
       var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
         sinon.spy(awk, 'processString');
         sinon.spy(awk, 'postProcess');
@@ -146,7 +146,7 @@ describe('Filter', function() {
         return results.builder();
       }).then(function(results) {
         var awk = results.subject;
-        // rebuild only 1 file
+        // rebuild 1 file
         expect(awk.processString.callCount).to.equal(1);
         expect(awk.postProcess.callCount).to.equal(1);
 
@@ -158,7 +158,7 @@ describe('Filter', function() {
         return results.builder();
       }).then(function(results) {
         var awk = results.subject;
-        // rebuild only 0 files
+        // rebuild 0 files
         expect(awk.processString.callCount).to.equal(0);
         expect(awk.postProcess.callCount).to.equal(0);
 
@@ -169,7 +169,7 @@ describe('Filter', function() {
     });
 
     describe('with extensions & targetExtension', function() {
-      it('calls processString only if work is needed', function() {
+      it('calls processString if work is needed', function() {
         var builder = makeBuilder(Rot13Filter, fixturePath('a'), function(awk) {
           sinon.spy(awk, 'processString');
           return awk;
@@ -212,7 +212,7 @@ describe('Filter', function() {
           return results.builder();
         }).then(function(results) {
           var awk = results.subject;
-          // rebuild only 0 files
+          // rebuild 0 files
           expect(awk.processString.callCount).to.equal(0);
           someDirPath = awk.inputPaths[0] + '/fooo/';
           fs.mkdir(someDirPath);
@@ -403,7 +403,7 @@ describe('Filter', function() {
     });
   });
 
-  it('should processString only when canProcessFile returns true', function() {
+  it('should processString when canProcessFile returns true', function() {
 
     var builder = makeBuilder(ReplaceFilter, fixturePath('a'), function(awk) {
       sinon.spy(awk, 'processString');
