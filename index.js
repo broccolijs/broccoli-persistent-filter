@@ -78,6 +78,7 @@ function Filter(inputTree, options) {
     if (options.persist) {
       this.processor.setStrategy(require('./lib/strategies/persistent'));
     }
+    this.async = (options.async === true);
   }
 
   this.processor.init(this);
@@ -135,6 +136,8 @@ Filter.prototype.build = function() {
   instrumentation.stop();
   var plugin = this;
 
+  var asyncOperations = [];
+
   return new Promise(function(resolve) {
     resolve(heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
       var prevTime = process.hrtime();
@@ -160,10 +163,20 @@ Filter.prototype.build = function() {
             return fs.unlinkSync(outputPath);
           } case 'change': {
             instrumentation.change++;
-            return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+            var changeOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+            if (plugin.async) {
+              asyncOperations.push(changeOperation);
+              return Promise.resolve();
+            }
+            return changeOperation;
           } case 'create': {
             instrumentation.create++;
-            return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+            var createOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+            if (plugin.async) {
+              asyncOperations.push(createOperation);
+              return Promise.resolve();
+            }
+            return createOperation;
           } default: {
             instrumentation.other++;
           }
@@ -174,6 +187,10 @@ Filter.prototype.build = function() {
 
       return result;
     }));
+  }).then(function(result) {
+    return Promise.all(asyncOperations).then(function() {
+      return result;
+    });
   }).then(function(result) {
     plugin._needsReset = false;
     return result;

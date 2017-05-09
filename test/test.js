@@ -27,9 +27,11 @@ const rimraf = require('rimraf').sync;
 const os = require('os');
 
 const ReplaceFilter = require('./helpers/replacer');
+const ReplaceAsyncFilter = require('./helpers/replacer-async');
 const IncompleteFilter = require('./helpers/incomplete');
 const MyFilter = require('./helpers/simple');
 const Rot13Filter = require('./helpers/rot13');
+const Rot13AsyncFilter = require('./helpers/rot13-async');
 
 const rootFixturePath = path.join(__dirname, 'fixtures');
 
@@ -455,6 +457,26 @@ describe('Filter', function() {
     expect(awk.processString.callCount).to.equal(3);
   }));
 
+  it('targetExtension work for multiple extensions - async', co.wrap(function* () {
+    let builder = makeBuilder(Rot13AsyncFilter, fixturePath('a'), awk => {
+      sinon.spy(awk, 'processString');
+      return awk;
+    });
+
+    let results = yield builder('dir', {
+      targetExtension: 'foo',
+      extensions: ['js','md'],
+      async: true,
+    });
+
+    let awk = results.subject;
+
+    expect(file(results.directory + '/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
+    expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+
+    expect(awk.processString.callCount).to.equal(3);
+  }));
+
   it('handles directories that older versions of walkSync do not sort lexicographically', co.wrap(function* () {
     let builder = makeBuilder(Rot13Filter, fixturePath('b'), awk => {
       sinon.spy(awk, 'processString');
@@ -581,6 +603,35 @@ describe('Filter', function() {
       glob: '**/*.md',
       search: 'dogs',
       replace: 'cats'
+    });
+
+    expect(file(fileForChange)).to.exist;
+
+    write(fileForChange, 'such changes');
+
+    expect(file(fileForChange)).to.exist;
+
+    results = yield results.builder();
+
+    expect(file(fileForChange)).to.exist;
+
+    write(fileForChange, 'such changes');
+
+    expect(file(fileForChange)).to.exist;
+
+    write(fileForChange, 'Nicest cats in need of homes');
+  }));
+
+  it('replaces stale entries - async', co.wrap(function* () {
+    let fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
+
+    let builder = makeBuilder(ReplaceAsyncFilter, fixturePath('a'), awk => awk);
+
+    let results = yield builder('dir', {
+      glob: '**/*.md',
+      search: 'dogs',
+      replace: 'cats',
+      async: true,
     });
 
     expect(file(fileForChange)).to.exist;

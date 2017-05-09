@@ -77,6 +77,8 @@ class Filter {
 * `outputEncoding`: The character encoding used for writing output files after
   processing (default: `'utf8'`). For binary files, pass `null` and return a
   `Buffer` object from `processString`.
+* `async`: Whether the `create` and `change` file operations are allowed to
+  complete asynchronously (true|false, default: false)
 * `name`, `annotation`: Same as
   [broccoli-plugin](https://github.com/broccolijs/broccoli-plugin#new-plugininputnodes-options);
   see there.
