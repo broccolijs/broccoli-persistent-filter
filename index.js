@@ -136,7 +136,8 @@ Filter.prototype.build = function() {
   instrumentation.stop();
   var plugin = this;
 
-  var asyncOperations = [];
+  // used with options.async = true to allow 'create' and 'change' operations to complete async
+  var pendingWork = [];
 
   return new Promise(function(resolve) {
     resolve(heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
@@ -165,16 +166,16 @@ Filter.prototype.build = function() {
             instrumentation.change++;
             var changeOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
             if (plugin.async) {
-              asyncOperations.push(changeOperation);
-              return Promise.resolve();
+              pendingWork.push(changeOperation);
+              return;
             }
             return changeOperation;
           } case 'create': {
             instrumentation.create++;
             var createOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
             if (plugin.async) {
-              asyncOperations.push(createOperation);
-              return Promise.resolve();
+              pendingWork.push(createOperation);
+              return;
             }
             return createOperation;
           } default: {
@@ -188,7 +189,7 @@ Filter.prototype.build = function() {
       return result;
     }));
   }).then(function(result) {
-    return Promise.all(asyncOperations).then(function() {
+    return Promise.all(pendingWork).then(function() {
       return result;
     });
   }).then(function(result) {
