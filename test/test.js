@@ -203,7 +203,7 @@ describe('Filter', function() {
 
       beforeEach(co.wrap(function* () {
         input = yield createTempDir();
-        subject = new Plugin(input.path());
+        subject = new Plugin(input.path(), { async:true });
         output = createBuilder(subject);
       }));
 
@@ -231,6 +231,75 @@ describe('Filter', function() {
 
         expect(output.read(), 'to no long be empty').to.deep.equal({
           'index.js': 'console.log("hi")'
+        });
+      }));
+    });
+
+    describe('build failures - async', function() {
+      let testHelpers = require('broccoli-test-helper');
+      let createBuilder = testHelpers.createBuilder;
+      let createTempDir = testHelpers.createTempDir;
+
+      let input;
+      let output;
+      let subject;
+
+      function Plugin(inputNode, options) {
+        if (!this) {
+          return new Plugin(inputNode, options);
+        }
+
+        this.shouldFail = true;
+        Filter.call(this, inputNode, options);
+      }
+
+      inherits(Plugin, Filter);
+
+      Plugin.prototype.processString = function(content) {
+        // every other file fails to build
+        let shouldFail = this.shouldFail;
+        this.shouldFail = !this.shouldFail;
+
+        return new Promise(function(resolve) {
+          if (shouldFail) {
+            throw new Error('file failed to build');
+          }
+          setTimeout(function() {
+            resolve(content);
+          }, 50);
+        });
+      };
+
+      beforeEach(co.wrap(function* () {
+        input = yield createTempDir();
+        subject = new Plugin(input.path(), { async:true });
+        output = createBuilder(subject);
+      }));
+
+      afterEach(co.wrap(function* () {
+        yield input.dispose();
+        yield output.dispose();
+      }));
+
+      it('completes all pending work before returning', co.wrap(function* () {
+        input.write({
+          'index0.js': 'console.log("hi")',
+          'index1.js': 'console.log("hi")',
+          'index2.js': 'console.log("hi")',
+          'index3.js': 'console.log("hi")',
+        });
+
+        let didFail = false;
+        try {
+          yield output.build();
+        } catch(error) {
+          didFail = true;
+          expect(error.message).to.contain('file failed to build');
+        }
+        expect(didFail).to.eql(true);
+        expect(output.read(), 'to be empty').to.deep.equal({
+          'index1.js': 'console.log("hi")',
+          'index3.js': 'console.log("hi")',
         });
       }));
     });

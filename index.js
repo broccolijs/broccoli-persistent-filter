@@ -16,6 +16,7 @@ var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
 var FSTree = require('fs-tree-diff');
 var heimdall = require('heimdalljs');
+var allSettled = require('rsvp').allSettled;
 
 
 function ApplyPatchesSchema() {
@@ -188,9 +189,9 @@ Filter.prototype.build = function() {
 
       return result;
     }));
-  }).then(function(result) {
-    return Promise.all(pendingWork).then(function() {
-      return result;
+  }).then(function(completedResult) {
+    return allSettled(pendingWork).then(function() {
+      return Promise.all(completedResult.concat(pendingWork));
     });
   }).then(function(result) {
     plugin._needsReset = false;
