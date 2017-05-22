@@ -8,6 +8,10 @@ const chaiFiles = require('chai-files');
 const file = chaiFiles.file;
 const co = require('co');
 
+const testHelpers = require('broccoli-test-helper');
+const createBuilder = testHelpers.createBuilder;
+const createTempDir = testHelpers.createTempDir;
+
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
 chai.use(chaiFiles);
@@ -90,8 +94,8 @@ describe('Filter', function() {
   });
 
   it('getDestFilePath returns null for directories when extensions is null', function() {
-    var inputPath = path.join(rootFixturePath, 'a/dir');
-    var filter = MyFilter(inputPath, { extensions: null });
+    let inputPath = path.join(rootFixturePath, 'a/dir');
+    let filter = MyFilter(inputPath, { extensions: null });
     filter.inputPaths = [inputPath];
 
     expect(filter.getDestFilePath('a/bar')).to.equal(null);
@@ -99,8 +103,8 @@ describe('Filter', function() {
   });
 
   it('getDestFilePath returns null for directories with matching extensions', function() {
-    var inputPath = path.join(rootFixturePath, 'dir-with-extensions');
-    var filter = MyFilter(inputPath, { extensions: ['js'] });
+    let inputPath = path.join(rootFixturePath, 'dir-with-extensions');
+    let filter = MyFilter(inputPath, { extensions: ['js'] });
     filter.inputPaths = [inputPath];
 
     expect(filter.getDestFilePath('a/loader.js')).to.equal(null);
@@ -120,62 +124,71 @@ describe('Filter', function() {
   });
 
   describe('on rebuild', function() {
+    let input, subject, output;
+
+    beforeEach(co.wrap(function* () {
+      input = yield createTempDir();
+      subject = new Rot13Filter(input.path());
+      sinon.spy(subject, 'processString');
+      sinon.spy(subject, 'postProcess');
+      output = createBuilder(subject);
+    }));
+
+    afterEach(co.wrap(function* () {
+      yield input.dispose();
+      yield output.dispose();
+    }));
+
     it('calls processString a if work is needed', co.wrap(function* () {
-      let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
-        sinon.spy(awk, 'processString');
-        sinon.spy(awk, 'postProcess');
-        return awk;
+      input.write({
+        'a': {
+          'README.md': 'OMG',
+          'foo.js': 'Nicest dogs in need of homes',
+          'bar': {
+            'bar.js': 'Dogs... who needs dogs?'
+          }
+        }
       });
-      let originalFileContent;
-      let originalFilePath;
-      let awk;
 
-      try {
-        let results = yield builder('dir');
-        awk = results.subject;
-        // first time, build everything
-        expect(awk.processString.callCount).to.equal(3);
-        expect(awk.postProcess.callCount).to.equal(3);
-        awk.processString.callCount = 0;
-        awk.postProcess.callCount = 0;
-        results = yield results.builder();
-        awk = results.subject;
-        // rebuild, but no changes (build nothing);
-        expect(awk.processString.callCount).to.equal(0);
-        expect(awk.postProcess.callCount).to.equal(0);
+      let results = yield output.build();
+      // first time, build everything
+      expect(subject.processString.callCount).to.equal(3);
+      expect(subject.postProcess.callCount).to.equal(3);
 
-        originalFilePath = awk.inputPaths[0] + '/a/README.md';
-        originalFileContent = fs.readFileSync(originalFilePath);
-        fs.writeFileSync(awk.inputPaths[0] + '/a/README.md', 'OMG');
+      subject.processString.callCount = 0;
+      subject.postProcess.callCount = 0;
 
-        results = yield results.builder();
-        awk = results.subject;
-        // rebuild 1 file
-        expect(awk.processString.callCount).to.equal(1);
-        expect(awk.postProcess.callCount).to.equal(1);
+      results = yield output.build();
 
-        awk.postProcess.callCount = 0;
-        awk.processString.callCount = 0;
+      // rebuild, but no changes (build nothing);
+      expect(subject.processString.callCount).to.equal(0);
+      expect(subject.postProcess.callCount).to.equal(0);
 
-        fs.unlinkSync(originalFilePath);
+      input.write({
+        'a': {
+          'README.md': 'OMG 2'
+        }
+      });
 
-        results = yield results.builder();
-        awk = results.subject;
-        // rebuild 0 files
-        expect(awk.processString.callCount).to.equal(0);
-        expect(awk.postProcess.callCount).to.equal(0);
+      results = yield output.build();
+      // rebuild 1 file
+      expect(subject.processString.callCount).to.equal(1);
+      expect(subject.postProcess.callCount).to.equal(1);
 
-        awk.postProcess.callCount = 0;
-      } finally {
-        fs.writeFileSync(originalFilePath, originalFileContent);
-      }
+      subject.postProcess.callCount = 0;
+      subject.processString.callCount = 0;
+
+      input.write({
+        'a': { 'README.md': null }
+      });
+
+      results = yield output.build();
+      // rebuild 0 files
+      expect(subject.processString.callCount).to.equal(0);
+      expect(subject.postProcess.callCount).to.equal(0);
     }));
 
     describe('mid build failure', function() {
-      let testHelpers = require('broccoli-test-helper');
-      let createBuilder = testHelpers.createBuilder;
-      let createTempDir = testHelpers.createTempDir;
-
       let input;
       let output;
       let subject;
@@ -894,51 +907,63 @@ describe('Filter', function() {
   });
 
   describe('processFile', function() {
-    beforeEach(function() {
+    let input, subject, output;
+
+    beforeEach(co.wrap(function* () {
       sinon.spy(fs, 'mkdirSync');
       sinon.spy(fs, 'writeFileSync');
-    });
 
-    afterEach(function() {
-      fs.mkdirSync.restore();
-      fs.writeFileSync.restore();
-    });
-
-    it('should work if `processString` returns a Promise', co.wrap(function* () {
-      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-        awk.processor.processString = function() {
-          return Promise.resolve('a promise is a promise');
-        };
-
-        return awk;
-      });
-
-      let results = yield builder('dir', { persistent: true });
-      expect(file(results.directory + '/a/foo.js')).to.equal('a promise is a promise');
-    }));
-
-    it('does not effect the current cwd', co.wrap(function* () {
-      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-        sinon.spy(awk, 'canProcessFile');
-        return awk;
-      });
-
-      let results = yield builder('dir', {
-        glob: '**/*.js',
+      input = yield createTempDir();
+      subject = new ReplaceFilter(input.path(), {
         search: 'dogs',
         replace: 'cats'
       });
 
-      let a = path.join(process.cwd(), 'a');
+      sinon.spy(subject, 'processString');
+      sinon.spy(subject, 'postProcess');
+
+      output = createBuilder(subject);
+    }));
+
+    afterEach(co.wrap(function* () {
+      fs.mkdirSync.restore();
+      fs.writeFileSync.restore();
+
+      yield input.dispose();
+      yield output.dispose();
+    }));
+
+    it('should work if `processString` returns a Promise', co.wrap(function* () {
+      input.write({
+        'foo.js': 'a promise is a promise'
+      });
+
+      yield output.build();
+
+      expect(output.read()['foo.js']).to.equal('a promise is a promise');
+    }));
+
+    it('does not effect the current cwd', co.wrap(function* () {
+      input.write({
+        'a': {
+          'foo.js': 'Nicest dogs in need of homes'
+        }
+      });
+
+      yield output.build();
+
+      let cwd = process.cwd();
+      let a = path.join(cwd, 'a');
 
       expect(fs.mkdirSync.calledWith(a, 493)).to.eql(false);
       expect(fs.mkdirSync.calledWith(path.join(a, 'bar'), 493)).to.eql(false);
 
-      expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
+      expect(fs.writeFileSync.calledWith(path.join(cwd, 'a', 'foo.js'),
         'Nicest dogs in need of homes')).to.eql(false);
 
-      yield results.builder();
-      expect(fs.writeFileSync.calledWith(path.join(process.cwd(), 'a', 'foo.js'),
+      yield output.build();
+
+      expect(fs.writeFileSync.calledWith(path.join(cwd, 'a', 'foo.js'),
         'Nicest dogs in need of homes')).to.eql(false);
     }));
   });
