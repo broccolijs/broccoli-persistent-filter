@@ -216,7 +216,7 @@ describe('Filter', function() {
 
       beforeEach(co.wrap(function* () {
         input = yield createTempDir();
-        subject = new Plugin(input.path(), { async:true });
+        subject = new Plugin(input.path());
         output = createBuilder(subject);
       }));
 
@@ -540,23 +540,17 @@ describe('Filter', function() {
   }));
 
   it('targetExtension work for multiple extensions - async', co.wrap(function* () {
-    let builder = makeBuilder(Rot13AsyncFilter, fixturePath('a'), awk => {
-      sinon.spy(awk, 'processString');
-      return awk;
-    });
-
-    let results = yield builder('dir', {
+    let subject = new Rot13AsyncFilter(fixturePath('a'), {
       targetExtension: 'foo',
-      extensions: ['js','md'],
+      extensions: ['js', 'md'],
       async: true,
     });
+    let output = createBuilder(subject);
 
-    let awk = results.subject;
+    yield output.build();
 
-    expect(file(results.directory + '/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
-    expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
-
-    expect(awk.processString.callCount).to.equal(3);
+    expect(output.read().dir['a']['README.foo']).to.equal('Avprfg pngf va arrq bs ubzrf');
+    expect(output.read().dir['a']['foo.foo']).to.equal('Avprfg qbtf va arrq bs ubzrf');
   }));
 
   it('handles directories that older versions of walkSync do not sort lexicographically', co.wrap(function* () {
@@ -707,14 +701,15 @@ describe('Filter', function() {
   it('replaces stale entries - async', co.wrap(function* () {
     let fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
 
-    let builder = makeBuilder(ReplaceAsyncFilter, fixturePath('a'), awk => awk);
-
-    let results = yield builder('dir', {
+    let subject = new ReplaceAsyncFilter(fixturePath('a'), {
       glob: '**/*.md',
       search: 'dogs',
       replace: 'cats',
       async: true,
     });
+    let output = createBuilder(subject);
+
+    yield output.build();
 
     expect(file(fileForChange)).to.exist;
 
@@ -722,7 +717,7 @@ describe('Filter', function() {
 
     expect(file(fileForChange)).to.exist;
 
-    results = yield results.builder();
+    yield output.build();
 
     expect(file(fileForChange)).to.exist;
 
