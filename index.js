@@ -87,6 +87,12 @@ function nanosecondsSince(time) {
   return delta[0] * 1e9 + delta[1];
 }
 
+function chompPathSep(path) {
+  // strip trailing path.sep (but both seps on posix and win32);
+  return path.replace(/(\/|\\)$/, '');
+}
+
+
 function timeSince(time) {
   var deltaNS = nanosecondsSince(time);
   return (deltaNS / 1e6).toFixed(2) +' ms';
@@ -95,7 +101,7 @@ function timeSince(time) {
 Filter.prototype.build = function() {
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
-  var instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
+  var instrumentation = heimdall.start('derivePatches - persistent filter', DerivePatchesSchema);
   var patches;
 
   if(this._fsFacade) {
@@ -110,10 +116,15 @@ Filter.prototype.build = function() {
     patches = currentTree.calculatePatch(nextTree);
   }
 
-  instrumentation.stats.patches = patches.length;
+  console.log('----------------patches from persistent filter');
+  patches.forEach(patch => {
+    console.log(patch[0] + ' ' + chompPathSep(patch[1]));
+  });
+
+  instrumentation.stats.patchesLength = patches.length;
   instrumentation.stop();
 
-  return heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
+  return heimdall.node('applyPatches - persistent filter', ApplyPatchesSchema, function(instrumentation) {
     var prevTime = process.hrtime();
 
     var result = mapSeries(patches, function(patch) {
@@ -127,6 +138,9 @@ Filter.prototype.build = function() {
         case 'mkdir': {
           instrumentation.mkdir++;
           return this.out.mkdirSync(relativePath);
+        } case 'mkdirp'  : {
+          instrumentation.mkdirp++;
+          return this.out.mkdirpSync(relativePath);
         } case 'rmdir': {
           instrumentation.rmdir++;
         return this.out.rmdirSync(relativePath);
@@ -150,6 +164,11 @@ Filter.prototype.build = function() {
 
   }, this);
 };
+
+function chompPathSep(path) {
+  // strip trailing path.sep (but both seps on posix and win32);
+  return path.replace(/(\/|\\)$/, '');
+}
 
 
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, isChange, instrumentation) {
@@ -261,9 +280,11 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
   if (inputEncoding === undefined)  inputEncoding  = 'utf8';
   if (outputEncoding === undefined) outputEncoding = 'utf8';
 
-  var contents = this.in[0].readFileSync( relativePath, {
+
+   var contents = this.in[0].readFileSync(relativePath, {
     encoding: inputEncoding
   });
+
 
 
   instrumentation.processString++;

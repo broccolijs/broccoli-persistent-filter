@@ -139,12 +139,11 @@ describe('Filter', function() {
         // rebuild, but no changes (build nothing);
         expect(awk.processString.callCount).to.equal(0);
         expect(awk.postProcess.callCount).to.equal(0);
-
         basePath = results.subject.in[0].root;
         originalFilePath =  'a/README.md';
         originalFileContent = results.subject.in[0].readFileSync(originalFilePath);
-        results.subject.in[0].writeFileSync('a/README.md', 'OMG');
-
+       // results.subject.in[0].writeFileSync('a/README.md', 'OMG');
+        fs.writeFileSync(path.join(basePath, 'a/README.md'), 'OMG');
         return results.builder();
       }).then(function(results) {
         var awk = results.subject;
@@ -154,9 +153,8 @@ describe('Filter', function() {
 
         awk.postProcess.callCount = 0;
         awk.processString.callCount = 0;
-
-        results.subject.in[0].unlinkSync(originalFilePath);
-
+        //results.subject.in[0].unlinkSync(originalFilePath);
+        fs.unlinkSync(path.join(basePath, 'a/README.md'));
         return results.builder();
       }).then(function(results) {
         var awk = results.subject;
@@ -200,7 +198,8 @@ describe('Filter', function() {
           basePath = results.subject.in[0].root;
           originalFilePath =  'a/README.md';
           originalFileContent = results.subject.in[0].readFileSync(originalFilePath);
-          results.subject.in[0].writeFileSync(originalFilePath, 'OMG');
+         // results.subject.in[0].writeFileSync(originalFilePath, 'OMG');
+          fs.writeFileSync(path.join(basePath, originalFilePath), 'OMG');
           expect(file(results.directory + '/a/foo.OMG')).to.exist;
 
            return results.builder();
@@ -210,14 +209,16 @@ describe('Filter', function() {
           expect(awk.processString.callCount).to.equal(0);
           awk.processString.callCount = 0;
 
-          results.subject.in[0].unlinkSync(originalFilePath);
+          //results.subject.in[0].unlinkSync(originalFilePath);
+          fs.unlinkSync(path.join(basePath, originalFilePath));
           return results.builder();
        }).then(function(results) {
           var awk = results.subject;
           // rebuild only 0 files
           expect(awk.processString.callCount).to.equal(0);
           someDirPath =  'fooo/';
-          results.subject.in[0].mkdirSync(someDirPath);
+         // results.subject.in[0].mkdirSync(someDirPath);
+          fs.mkdirSync(path.join(basePath, someDirPath));
           return results.builder();
        }).then(function(results) {
           var awk = results.subject;
@@ -225,7 +226,8 @@ describe('Filter', function() {
           expect(awk.processString.callCount).to.equal(0);
           originalJSFilePath = 'a/foo.js';
           originalJSFileContent = results.subject.in[0].readFileSync(originalJSFilePath);
-          results.subject.in[0].writeFileSync(originalJSFilePath, 'OMG');
+          //results.subject.in[0].writeFileSync(originalJSFilePath, 'OMG');
+          fs.writeFileSync(path.join(basePath, originalJSFilePath), 'OMG');
           return results.builder();
          }).then(function(results) {
            var awk = results.subject;
@@ -262,6 +264,7 @@ describe('Filter', function() {
       return builder('dir', {
         extensions: ['md'], targetExtension: ['foo.md']
       }).then(function (results) {
+       // results.subject.in[0].start();
         var awk = results.subject;
         // first time, build everything
         expect(awk.processString.callCount).to.equal(1);
@@ -271,8 +274,10 @@ describe('Filter', function() {
         filePathNext = 'a/README-renamed.md';
         basePath = results.subject.in[0].root;
         let content = results.subject.in[0].readFileSync(filePathPrevious);
-        results.subject.in[0].writeFileSync(filePathNext, content);
-        results.subject.in[0].unlinkSync(filePathPrevious);
+        fs.writeFileSync(path.join(basePath, filePathNext), content);
+        fs.unlinkSync(path.join(basePath, filePathPrevious));
+        // results.subject.in[0].writeFileSync(filePathNext, content);
+        // results.subject.in[0].unlinkSync(filePathPrevious);
 
           return results.builder();
 
@@ -490,7 +495,8 @@ describe('Filter', function() {
     }).then(function(results) {
       fileForRemoval = results.subject.inputPaths[0] + '/a/README.md';
       expect(file(fileForRemoval)).to.exist;
-      results.subject.in[0].unlinkSync('a/README.md');
+      fs.unlinkSync(fileForRemoval);
+     // results.subject.in[0].unlinkSync('a/README.md');
 
       expect(file(fileForRemoval)).to.not.exist;
       expect(file(results.directory + '/a/README.md')).to.exist;
@@ -609,7 +615,7 @@ describe('Filter', function() {
       });
 
       // TODO: we should just deal in observable differences, not reaching into private state
-      expect(f.processor.processor._cache.tmpDir).
+      expect(f.processor.processor._cache.tmpdir).
         to.be.equal(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
     });
 
