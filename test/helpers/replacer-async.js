@@ -1,13 +1,13 @@
 'use strict';
 
-var path = require('path');
-var Promise = require('rsvp').Promise;
-var Filter = require('../../');
-var minimatch = require('minimatch');
+const path = require('path');
+const Promise = require('rsvp').Promise;
+const Filter = require('../../');
+const minimatch = require('minimatch');
 
-class ReplaceAsyncFilter extends Filter {
+module.exports = class ReplaceAsyncFilter extends Filter {
   constructor(inputTree, _options) {
-    var options = _options || {};
+    let options = _options || {};
 
     super(inputTree, options);
 
@@ -24,9 +24,9 @@ class ReplaceAsyncFilter extends Filter {
   }
 
   processString(contents/*, relativePath*/) {
-    var result = contents.replace(this._search, this._replacement);
-    return new Promise(function(resolve) {
-      setTimeout(function() {
+    const result = contents.replace(this._search, this._replacement);
+    return new Promise((resolve) => {
+      setTimeout(() => {
         resolve(result);
       }, 50);
     });
@@ -35,6 +35,4 @@ class ReplaceAsyncFilter extends Filter {
   baseDir() {
     return path.join(__dirname, '../../');
   }
-}
-
-module.exports = ReplaceAsyncFilter;
+};

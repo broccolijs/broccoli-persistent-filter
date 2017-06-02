@@ -189,11 +189,11 @@ Filter.prototype.build = function() {
 
       return result;
     }));
-  }).then(function(completedResult) {
-    return allSettled(pendingWork).then(function() {
+  }).then((completedResult) => {
+    return allSettled(pendingWork).then(() => {
       return Promise.all(completedResult.concat(pendingWork));
     });
-  }).then(function(result) {
+  }).then((result) => {
     plugin._needsReset = false;
     return result;
   });

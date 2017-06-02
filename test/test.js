@@ -257,31 +257,27 @@ describe('Filter', function() {
       let output;
       let subject;
 
-      function Plugin(inputNode, options) {
-        if (!this) {
-          return new Plugin(inputNode, options);
+      class Plugin extends Filter {
+        constructor(inputTree, options) {
+          super(inputTree, options);
+          this.shouldFail = true;
         }
 
-        this.shouldFail = true;
-        Filter.call(this, inputNode, options);
+        processString(content) {
+          // every other file fails to build
+          let shouldFail = this.shouldFail;
+          this.shouldFail = !this.shouldFail;
+
+          return new Promise((resolve) => {
+            if (shouldFail) {
+              throw new Error('file failed to build');
+            }
+            setTimeout(() => {
+              resolve(content);
+            }, 50);
+          });
+        }
       }
-
-      inherits(Plugin, Filter);
-
-      Plugin.prototype.processString = function(content) {
-        // every other file fails to build
-        let shouldFail = this.shouldFail;
-        this.shouldFail = !this.shouldFail;
-
-        return new Promise(function(resolve) {
-          if (shouldFail) {
-            throw new Error('file failed to build');
-          }
-          setTimeout(function() {
-            resolve(content);
-          }, 50);
-        });
-      };
 
       beforeEach(co.wrap(function* () {
         input = yield createTempDir();
