@@ -666,63 +666,62 @@ describe('Filter', function() {
     expect(file(results.directory + '/a/foo.js')).to.exist;
   }));
 
-  it('replaces stale entries', co.wrap(function* () {
+  describe('stale entries', function() {
     let fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
-
-    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
-
-    let results = yield builder('dir', {
-      glob: '**/*.md',
-      search: 'dogs',
-      replace: 'cats'
+    afterEach(function() {
+      write(fileForChange, 'Nicest cats in need of homes');
     });
 
-    expect(file(fileForChange)).to.exist;
+    it('replaces stale entries', co.wrap(function* () {
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
 
-    write(fileForChange, 'such changes');
+      let results = yield builder('dir', {
+        glob: '**/*.md',
+        search: 'dogs',
+        replace: 'cats'
+      });
 
-    expect(file(fileForChange)).to.exist;
+      expect(file(fileForChange)).to.exist;
 
-    results = yield results.builder();
+      write(fileForChange, 'such changes');
 
-    expect(file(fileForChange)).to.exist;
+      expect(file(fileForChange)).to.exist;
 
-    write(fileForChange, 'such changes');
+      results = yield results.builder();
 
-    expect(file(fileForChange)).to.exist;
+      expect(file(fileForChange)).to.exist;
 
-    write(fileForChange, 'Nicest cats in need of homes');
-  }));
+      write(fileForChange, 'such changes');
 
-  it('replaces stale entries - async', co.wrap(function* () {
-    let fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
+      expect(file(fileForChange)).to.exist;
+    }));
 
-    let subject = new ReplaceAsyncFilter(fixturePath('a'), {
-      glob: '**/*.md',
-      search: 'dogs',
-      replace: 'cats',
-      async: true,
-    });
-    let output = createBuilder(subject);
+    it('replaces stale entries - async', co.wrap(function* () {
+      let subject = new ReplaceAsyncFilter(fixturePath('a'), {
+        glob: '**/*.md',
+        search: 'cats',
+        replace: 'dogs',
+        async: true,
+      });
+      let output = createBuilder(subject);
 
-    yield output.build();
+      yield output.build();
 
-    expect(file(fileForChange)).to.exist;
+      expect(file(output.builder.outputPath + '/dir/a/README.md')).to.equal('Nicest dogs in need of homes');
 
-    write(fileForChange, 'such changes');
+      expect(file(fileForChange)).to.exist;
 
-    expect(file(fileForChange)).to.exist;
+      write(fileForChange, 'such changes');
 
-    yield output.build();
+      expect(file(fileForChange)).to.exist;
 
-    expect(file(fileForChange)).to.exist;
+      yield output.build();
 
-    write(fileForChange, 'such changes');
+      expect(file(output.builder.outputPath + '/dir/a/README.md')).to.equal('such changes');
+    }));
 
-    expect(file(fileForChange)).to.exist;
 
-    write(fileForChange, 'Nicest cats in need of homes');
-  }));
+  });
 
   it('does not overwrite core options if they are not present', function() {
     function F(inputTree, options) {
