@@ -268,12 +268,14 @@ describe('Filter', function() {
           let shouldFail = this.shouldFail;
           this.shouldFail = !this.shouldFail;
 
-          return new Promise((resolve) => {
-            if (shouldFail) {
-              throw new Error('file failed to build');
-            }
+          return new Promise((resolve, reject) => {
             setTimeout(() => {
-              resolve(content);
+              if (shouldFail) {
+                reject('file failed for some reason');
+              }
+              else {
+                resolve(content);
+              }
             }, 50);
           });
         }
@@ -303,9 +305,9 @@ describe('Filter', function() {
           yield output.build();
         } catch(error) {
           didFail = true;
-          expect(error.message).to.contain('file failed to build');
+          expect(error.message).to.contain('file failed for some reason', 'error message text should match');
         }
-        expect(didFail).to.eql(true);
+        expect(didFail).to.eql(true, 'build should fail');
         expect(output.read(), 'to be empty').to.deep.equal({
           'index1.js': 'console.log("hi")',
           'index3.js': 'console.log("hi")',
