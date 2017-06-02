@@ -102,19 +102,7 @@ Filter.prototype.build = function() {
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
   var instrumentation = heimdall.start('derivePatches - persistent filter', DerivePatchesSchema);
-  var patches;
-
-  if(this._fsFacade) {
-    //using change tracking
-    patches = this.in[0].changes();
-  } else  {
-    //diffing to find changes, remove this later
-    var entries = walkSync.entries(srcDir);
-    var nextTree = new FSTree.fromEntries(entries);
-    var currentTree = this.currentTree;
-    this.currentTree = nextTree;
-    patches = currentTree.calculatePatch(nextTree);
-  }
+  const patches = this.in[0].changes();
 
   console.log('----------------patches from persistent filter');
   patches.forEach(patch => {
@@ -284,8 +272,6 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
    var contents = this.in[0].readFileSync(relativePath, {
     encoding: inputEncoding
   });
-
-
 
   instrumentation.processString++;
 
