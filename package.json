@@ -34,8 +34,8 @@
   "dependencies": {
     "async-disk-cache": "^1.0.0",
     "blank-object": "^1.0.1",
-    "broccoli-plugin": "^1.0.0",
-    "fs-tree-diff": "^0.5.2",
+    "broccoli-plugin": "arthirm/broccoli-plugin#hjdivad/change-tracking",
+    "fs-tree-diff": "arthirm/fs-tree-diff#refactor",
     "hash-for-dep": "^1.0.2",
     "heimdalljs": "^0.2.1",
     "heimdalljs-logger": "^0.1.7",
