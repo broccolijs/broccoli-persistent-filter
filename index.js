@@ -143,60 +143,59 @@ Filter.prototype.build = function() {
   return new Promise(function(resolve) {
     resolve(heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
       var prevTime = process.hrtime();
+      return new Promise(function(resolve) {
+        var result = mapSeries(patches, function(patch) {
+          var operation = patch[0];
+          var relativePath = patch[1];
+          var entry = patch[2];
+          var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath, entry) || relativePath);
+          var outputFilePath = outputPath;
 
-      var result = mapSeries(patches, function(patch) {
-        var operation = patch[0];
-        var relativePath = patch[1];
-        var entry = patch[2];
-        var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath, entry) || relativePath);
-        var outputFilePath = outputPath;
+          plugin._logger.debug('[operation:%s] %s', operation, relativePath);
 
-        plugin._logger.debug('[operation:%s] %s', operation, relativePath);
-
-        switch (operation) {
-          case 'mkdir': {
-            instrumentation.mkdir++;
-            return fs.mkdirSync(outputPath);
-          } case 'rmdir': {
-            instrumentation.rmdir++;
-            return fs.rmdirSync(outputPath);
-          } case 'unlink': {
-            instrumentation.unlink++;
-            return fs.unlinkSync(outputPath);
-          } case 'change': {
-            instrumentation.change++;
-            var changeOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
-            // will be undefined if this.canProcessFile() == false
-            if (plugin.async && changeOperation !== undefined) {
-              pendingWork.push(changeOperation);
-              return;
+          switch (operation) {
+            case 'mkdir': {
+              instrumentation.mkdir++;
+              return fs.mkdirSync(outputPath);
+            } case 'rmdir': {
+              instrumentation.rmdir++;
+              return fs.rmdirSync(outputPath);
+            } case 'unlink': {
+              instrumentation.unlink++;
+              return fs.unlinkSync(outputPath);
+            } case 'change': {
+              instrumentation.change++;
+              var changeOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+              // will be undefined if this.canProcessFile() == false
+              if (plugin.async && changeOperation !== undefined) {
+                pendingWork.push(changeOperation);
+                return;
+              }
+              return changeOperation;
+            } case 'create': {
+              instrumentation.create++;
+              var createOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+              // will be undefined if this.canProcessFile() == false
+              if (plugin.async && createOperation !== undefined) {
+                pendingWork.push(createOperation);
+                return;
+              }
+              return createOperation;
+            } default: {
+              instrumentation.other++;
             }
-            return changeOperation;
-          } case 'create': {
-            instrumentation.create++;
-            var createOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
-            // will be undefined if this.canProcessFile() == false
-            if (plugin.async && createOperation !== undefined) {
-              pendingWork.push(createOperation);
-              return;
-            }
-            return createOperation;
-          } default: {
-            instrumentation.other++;
           }
-        }
+        });
+        resolve(result);
+      }).then(() => {
+        const worker = queue.async.asyncify((promise) => promise);
+        return queue(worker, pendingWork, 4);
+      }).then((result) => {
+        plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+        plugin._needsReset = false;
+        return result;
       });
-
-      plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
-
-      return result;
     }));
-  }).then(() => {
-    const worker = queue.async.asyncify((promise) => promise);
-    return queue(worker, pendingWork, 4);
-  }).then((result) => {
-    plugin._needsReset = false;
-    return result;
   });
 };
 

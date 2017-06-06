@@ -7,6 +7,7 @@ const sinonChai = require('sinon-chai');
 const chaiFiles = require('chai-files');
 const file = chaiFiles.file;
 const co = require('co');
+const heimdall = require('heimdalljs');
 
 const testHelpers = require('broccoli-test-helper');
 const createBuilder = testHelpers.createBuilder;
@@ -758,6 +759,22 @@ describe('Filter', function() {
       outputEncoding: 'utf8'
     }).outputEncoding).to.equal('utf8');
   });
+
+  it('reports heimdall timing correctly for async work', co.wrap(function* () {
+    heimdall._reset();
+    let subject = new Rot13AsyncFilter(fixturePath('a'), {
+      targetExtension: 'foo',
+      extensions: ['js', 'md'],
+      async: true,
+    });
+    let output = createBuilder(subject);
+
+    yield output.build();
+
+    var applyPatchesNode = heimdall.toJSON().nodes.filter(elem => elem.id.name === 'applyPatches')[0];
+    var selfTime = applyPatchesNode.stats.time.self / (1000 * 1000); // convert to ms
+    expect(selfTime).to.be.above(50, 'reported time should include the 50ms timeout in Rot13AsyncFilter');
+  }));
 
   describe('persistent cache', function() {
     function F(inputTree, options) {
