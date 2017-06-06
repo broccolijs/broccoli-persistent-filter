@@ -16,7 +16,7 @@ var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
 var FSTree = require('fs-tree-diff');
 var heimdall = require('heimdalljs');
-var allSettled = require('rsvp').allSettled;
+var queue = require('async-promise-queue');
 
 
 function ApplyPatchesSchema() {
@@ -166,7 +166,8 @@ Filter.prototype.build = function() {
           } case 'change': {
             instrumentation.change++;
             var changeOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
-            if (plugin.async) {
+            // will be undefined if this.canProcessFile() == false
+            if (plugin.async && changeOperation !== undefined) {
               pendingWork.push(changeOperation);
               return;
             }
@@ -174,7 +175,8 @@ Filter.prototype.build = function() {
           } case 'create': {
             instrumentation.create++;
             var createOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
-            if (plugin.async) {
+            // will be undefined if this.canProcessFile() == false
+            if (plugin.async && createOperation !== undefined) {
               pendingWork.push(createOperation);
               return;
             }
@@ -189,10 +191,9 @@ Filter.prototype.build = function() {
 
       return result;
     }));
-  }).then((completedResult) => {
-    return allSettled(pendingWork).then(() => {
-      return Promise.all(completedResult.concat(pendingWork));
-    });
+  }).then(() => {
+    const worker = queue.async.asyncify((promise) => promise);
+    return queue(worker, pendingWork, 4);
   }).then((result) => {
     plugin._needsReset = false;
     return result;
