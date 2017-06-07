@@ -18,6 +18,7 @@ var FSTree = require('fs-tree-diff');
 var heimdall = require('heimdalljs');
 var queue = require('async-promise-queue');
 
+const concurrency = Number(process.env.JOBS) || require('os').cpus().length;
 
 function ApplyPatchesSchema() {
   this.mkdir = 0;
@@ -189,7 +190,7 @@ Filter.prototype.build = function() {
         resolve(result);
       }).then(() => {
         const worker = queue.async.asyncify((promise) => promise);
-        return queue(worker, pendingWork, 4);
+        return queue(worker, pendingWork, concurrency);
       }).then((result) => {
         plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
         plugin._needsReset = false;
