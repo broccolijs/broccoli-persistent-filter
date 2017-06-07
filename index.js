@@ -18,8 +18,6 @@ var FSTree = require('fs-tree-diff');
 var heimdall = require('heimdalljs');
 var queue = require('async-promise-queue');
 
-const concurrency = Number(process.env.JOBS) || require('os').cpus().length;
-
 function ApplyPatchesSchema() {
   this.mkdir = 0;
   this.rmdir = 0;
@@ -88,6 +86,8 @@ function Filter(inputTree, options) {
   this._canProcessCache = Object.create(null);
   this._destFilePathCache = Object.create(null);
   this._needsReset = false;
+  
+  this.concurrency = Number(process.env.JOBS) || require('os').cpus().length;
 }
 
 function nanosecondsSince(time) {
@@ -190,7 +190,7 @@ Filter.prototype.build = function() {
         resolve(result);
       }).then(() => {
         const worker = queue.async.asyncify((promise) => promise);
-        return queue(worker, pendingWork, concurrency);
+        return queue(worker, pendingWork, plugin.concurrency);
       }).then((result) => {
         plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
         plugin._needsReset = false;

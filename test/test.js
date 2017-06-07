@@ -976,4 +976,21 @@ describe('Filter', function() {
         'Nicest dogs in need of homes')).to.eql(false);
     }));
   });
+
+  describe('concurrency', function() {
+    afterEach(function() {
+      delete process.env.JOBS;
+    });
+
+    it('sets concurrency automatically using detected cpus', function() {
+      let filter = MyFilter('.', {});
+      expect(filter.concurrency).to.equal(os.cpus().length);
+    });
+
+    it('sets concurrency using environment variable', function() {
+      process.env.JOBS = '12';
+      let filter = MyFilter('.', {});
+      expect(filter.concurrency).to.equal(12);
+    });
+  });
 });
