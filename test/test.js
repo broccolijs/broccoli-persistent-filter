@@ -44,6 +44,11 @@ function fixturePath(relativePath) {
   return path.join(rootFixturePath, relativePath);
 }
 
+function millisecondsSince(time) {
+  var delta = process.hrtime(time);
+  return (delta[0] * 1e9 + delta[1]) / 1e6;
+}
+
 
 describe('Filter', function() {
   function makeBuilder(plugin, dir, prepSubject) {
@@ -993,4 +998,91 @@ describe('Filter', function() {
       expect(filter.concurrency).to.equal(12);
     });
   });
+});
+
+describe('throttling', function() {
+  let testHelpers = require('broccoli-test-helper');
+  let createBuilder = testHelpers.createBuilder;
+  let createTempDir = testHelpers.createTempDir;
+
+  let input;
+  let output;
+  let subject;
+
+  class Plugin extends Filter {
+    constructor(inputTree, options) {
+      super(inputTree, options);
+      this.shouldFail = true;
+    }
+
+    processString(content) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(content);
+        }, 100);
+      });
+    }
+  }
+
+  beforeEach(co.wrap(function* () {
+    input = yield createTempDir();
+    input.write({
+      'index0.js': 'console.log("hi")',
+      'index1.js': 'console.log("hi")',
+      'index2.js': 'console.log("hi")',
+      'index3.js': 'console.log("hi")',
+    });
+  }));
+
+  afterEach(co.wrap(function* () {
+    expect(output.read(), 'to be empty').to.deep.equal({
+      'index0.js': 'console.log("hi")',
+      'index1.js': 'console.log("hi")',
+      'index2.js': 'console.log("hi")',
+      'index3.js': 'console.log("hi")',
+    });
+
+    yield input.dispose();
+    yield output.dispose();
+  }));
+
+  it('throttles operations to 1 concurrent job', co.wrap(function* () {
+    process.env.JOBS = '1';
+    subject = new Plugin(input.path(), { async:true });
+    output = createBuilder(subject);
+    expect(subject.concurrency).to.equal(1);
+
+    var startTime = process.hrtime();
+
+    yield output.build();
+
+    expect(millisecondsSince(startTime)).to.be.above(400, '4 groups of 1 file each, taking 100ms each, should take at least 400ms');
+  }));
+
+  it('throttles operations to 2 concurrent jobs', co.wrap(function* () {
+    process.env.JOBS = '2';
+    subject = new Plugin(input.path(), { async:true });
+    output = createBuilder(subject);
+    expect(subject.concurrency).to.equal(2);
+
+    var startTime = process.hrtime();
+
+    yield output.build();
+
+    expect(millisecondsSince(startTime)).to.be.above(200, '2 groups of 2 files each, taking 100ms each, should take at least 200ms');
+  }));
+
+  it('throttles operations to 4 concurrent jobs', co.wrap(function* () {
+    process.env.JOBS = '4';
+    subject = new Plugin(input.path(), { async:true });
+    output = createBuilder(subject);
+    expect(subject.concurrency).to.equal(4);
+
+    var startTime = process.hrtime();
+
+    yield output.build();
+
+    expect(millisecondsSince(startTime)).to.be.above(100, '1 group of all 4 files, taking 100ms each, should take at least 100ms');
+    expect(millisecondsSince(startTime)).to.be.below(200, 'all 4 jobs running concurrently in 1 group should finish in about 100ms');
+  }));
 });

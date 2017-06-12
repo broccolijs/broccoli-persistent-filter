@@ -86,7 +86,7 @@ function Filter(inputTree, options) {
   this._canProcessCache = Object.create(null);
   this._destFilePathCache = Object.create(null);
   this._needsReset = false;
-  
+
   this.concurrency = Number(process.env.JOBS) || require('os').cpus().length;
 }
 
@@ -166,22 +166,26 @@ Filter.prototype.build = function() {
               return fs.unlinkSync(outputPath);
             } case 'change': {
               instrumentation.change++;
-              var changeOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
-              // will be undefined if this.canProcessFile() == false
-              if (plugin.async && changeOperation !== undefined) {
+              // wrap this in a function so it doesn't actually run yet, and can be throttled
+              var changeOperation = function() {
+                return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+              };
+              if (plugin.async) {
                 pendingWork.push(changeOperation);
                 return;
               }
-              return changeOperation;
+              return changeOperation();
             } case 'create': {
               instrumentation.create++;
-              var createOperation = plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
-              // will be undefined if this.canProcessFile() == false
-              if (plugin.async && createOperation !== undefined) {
+              // wrap this in a function so it doesn't actually run yet, and can be throttled
+              var createOperation = function() {
+                return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+              };
+              if (plugin.async) {
                 pendingWork.push(createOperation);
                 return;
               }
-              return createOperation;
+              return createOperation();
             } default: {
               instrumentation.other++;
             }
@@ -189,7 +193,7 @@ Filter.prototype.build = function() {
         });
         resolve(result);
       }).then(() => {
-        const worker = queue.async.asyncify((promise) => promise);
+        const worker = queue.async.asyncify((doWork) => doWork());
         return queue(worker, pendingWork, plugin.concurrency);
       }).then((result) => {
         plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
