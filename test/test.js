@@ -288,12 +288,14 @@ describe('Filter', function() {
       }
 
       beforeEach(co.wrap(function* () {
+        process.env.JOBS = '4';
         input = yield createTempDir();
         subject = new Plugin(input.path(), { async:true });
         output = createBuilder(subject);
       }));
 
       afterEach(co.wrap(function* () {
+        delete process.env.JOBS;
         yield input.dispose();
         yield output.dispose();
       }));
