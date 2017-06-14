@@ -34,8 +34,8 @@
   "dependencies": {
     "async-disk-cache": "^1.0.0",
     "blank-object": "^1.0.1",
-    "broccoli-plugin": "arthirm/broccoli-plugin#hjdivad/change-tracking",
-    "fs-tree-diff": "arthirm/fs-tree-diff#refactor",
+    "broccoli-plugin": "^1.0.0",
+    "fs-tree-diff": "^0.5.2",
     "hash-for-dep": "^1.0.2",
     "heimdalljs": "^0.2.1",
     "heimdalljs-logger": "^0.1.7",
@@ -43,8 +43,7 @@
     "mkdirp": "^0.5.1",
     "promise-map-series": "^0.2.1",
     "rsvp": "^3.0.18",
-    "symlink-or-copy": "^1.0.1",
-    "walk-sync": "^0.3.1"
+    "symlink-or-copy": "^1.0.1"
   },
   "devDependencies": {
     "broccoli-test-helpers": "^0.0.9",

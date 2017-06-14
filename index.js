@@ -3,7 +3,6 @@
 var path = require('path');
 var Promise = require('rsvp').Promise;
 var Plugin = require('broccoli-plugin');
-var walkSync = require('walk-sync');
 var mapSeries = require('promise-map-series');
 var debugGenerator = require('heimdalljs-logger');
 var md5Hex = require('md5-hex');
@@ -104,7 +103,7 @@ Filter.prototype.build = function() {
   var instrumentation = heimdall.start('derivePatches - persistent filter', DerivePatchesSchema);
   const patches = this.in[0].changes();
 
-  console.log('----------------patches from persistent filter');
+  console.log(`----------------patches from ${this._name + (this._annotation != null ? ' (' + this._annotation + ')' : '')}`);
   patches.forEach(patch => {
     console.log(patch[0] + ' ' + chompPathSep(patch[1]));
   });
@@ -170,7 +169,7 @@ Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, is
     if (isChange) {
         this.out.unlinkSync(relativePath);
     }
-    return this.out.symlinkSync(this.in[0].resolvePath(relativePath), relativePath);
+    return this.out.symlinkSyncFromEntry(this.in[0], relativePath, relativePath);
   }
 };
 
