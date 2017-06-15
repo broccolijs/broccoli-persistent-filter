@@ -316,7 +316,7 @@ describe('Filter', function() {
           expect(error.message).to.contain('file failed for some reason', 'error message text should match');
         }
         expect(didFail).to.eql(true, 'build should fail');
-        expect(output.read(), 'to be empty').to.deep.equal({
+        expect(output.read(), 'should write the files that did not fail').to.deep.equal({
           'index1.js': 'console.log("hi")',
           'index3.js': 'console.log("hi")',
         });
@@ -1037,7 +1037,8 @@ describe('throttling', function() {
   }));
 
   afterEach(co.wrap(function* () {
-    expect(output.read(), 'to be empty').to.deep.equal({
+    delete process.env.JOBS;
+    expect(output.read(), 'all files should be written').to.deep.equal({
       'index0.js': 'console.log("hi")',
       'index1.js': 'console.log("hi")',
       'index2.js': 'console.log("hi")',
