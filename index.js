@@ -39,6 +39,8 @@ function DerivePatchesSchema() {
   this.entries = 0;
 }
 
+const worker = queue.async.asyncify((doWork) => doWork());
+
 module.exports = Filter;
 
 Filter.prototype = Object.create(Plugin.prototype);
@@ -192,10 +194,8 @@ Filter.prototype.build = function() {
           }
         });
         resolve(result);
-      }).then(() => {
-        const worker = queue.async.asyncify((doWork) => doWork());
-        return queue(worker, pendingWork, plugin.concurrency);
-      }).then((result) => {
+      }).then(() => queue(worker, pendingWork, plugin.concurrency)
+      ).then((result) => {
         plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
         plugin._needsReset = false;
         return result;
