@@ -989,15 +989,34 @@ describe('Filter', function() {
       delete process.env.JOBS;
     });
 
-    it('sets concurrency automatically using detected cpus', function() {
-      let filter = MyFilter('.', {});
-      expect(filter.concurrency).to.equal(os.cpus().length);
-    });
-
     it('sets concurrency using environment variable', function() {
       process.env.JOBS = '12';
       let filter = MyFilter('.', {});
       expect(filter.concurrency).to.equal(12);
+    });
+
+    it('sets concurrency using options.concurrency', function() {
+      process.env.JOBS = '12';
+      let filter = MyFilter('.', { concurrency: 15 });
+      expect(filter.concurrency).to.equal(15);
+    });
+
+    describe('CPU detection', function() {
+      afterEach(function() {
+        os.cpus.restore();
+      });
+
+      it('should set to detected CPUs - 1', function() {
+        sinon.stub(os, 'cpus').callsFake(() => ['cpu0', 'cpu1', 'cpu2']);
+        let filter = MyFilter('.', {});
+        expect(filter.concurrency).to.equal(2);
+      });
+
+      it('should have a min of 1', function() {
+        sinon.stub(os, 'cpus').callsFake(() => []);
+        let filter = MyFilter('.', {});
+        expect(filter.concurrency).to.equal(1);
+      });
     });
   });
 });

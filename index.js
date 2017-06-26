@@ -89,7 +89,7 @@ function Filter(inputTree, options) {
   this._destFilePathCache = Object.create(null);
   this._needsReset = false;
 
-  this.concurrency = Number(process.env.JOBS) || require('os').cpus().length;
+  this.concurrency = (options && options.concurrency) || Number(process.env.JOBS) || Math.max(require('os').cpus().length - 1, 1);
 }
 
 function nanosecondsSince(time) {
@@ -167,9 +167,9 @@ Filter.prototype.build = function() {
               instrumentation.unlink++;
               return fs.unlinkSync(outputPath);
             } case 'change': {
-              instrumentation.change++;
               // wrap this in a function so it doesn't actually run yet, and can be throttled
               var changeOperation = function() {
+                instrumentation.change++;
                 return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
               };
               if (plugin.async) {
@@ -178,9 +178,9 @@ Filter.prototype.build = function() {
               }
               return changeOperation();
             } case 'create': {
-              instrumentation.create++;
               // wrap this in a function so it doesn't actually run yet, and can be throttled
               var createOperation = function() {
+                instrumentation.create++;
                 return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
               };
               if (plugin.async) {

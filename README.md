@@ -82,6 +82,9 @@ class Filter {
 * `name`, `annotation`: Same as
   [broccoli-plugin](https://github.com/broccolijs/broccoli-plugin#new-plugininputnodes-options);
   see there.
+* `concurrency`: Used with `async: true`. The number of operations that can be
+  run concurrently. This overrides the value set with `JOBS=n` environment variable.
+  (default: the number of detected CPU cores - 1, with a min of 1)
 
 All options except `name` and `annotation` can also be set on the prototype
 instead of being passed into the constructor.
