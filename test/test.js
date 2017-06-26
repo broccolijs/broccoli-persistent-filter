@@ -7,6 +7,7 @@ const sinonChai = require('sinon-chai');
 const chaiFiles = require('chai-files');
 const file = chaiFiles.file;
 const co = require('co');
+const heimdall = require('heimdalljs');
 
 const testHelpers = require('broccoli-test-helper');
 const createBuilder = testHelpers.createBuilder;
@@ -31,14 +32,21 @@ const rimraf = require('rimraf').sync;
 const os = require('os');
 
 const ReplaceFilter = require('./helpers/replacer');
+const ReplaceAsyncFilter = require('./helpers/replacer-async');
 const IncompleteFilter = require('./helpers/incomplete');
 const MyFilter = require('./helpers/simple');
 const Rot13Filter = require('./helpers/rot13');
+const Rot13AsyncFilter = require('./helpers/rot13-async');
 
 const rootFixturePath = path.join(__dirname, 'fixtures');
 
 function fixturePath(relativePath) {
   return path.join(rootFixturePath, relativePath);
+}
+
+function millisecondsSince(time) {
+  var delta = process.hrtime(time);
+  return (delta[0] * 1e9 + delta[1]) / 1e6;
 }
 
 
@@ -242,6 +250,75 @@ describe('Filter', function() {
 
         expect(output.read(), 'to no long be empty').to.deep.equal({
           'index.js': 'console.log("hi")'
+        });
+      }));
+    });
+
+    describe('build failures - async', function() {
+      let testHelpers = require('broccoli-test-helper');
+      let createBuilder = testHelpers.createBuilder;
+      let createTempDir = testHelpers.createTempDir;
+
+      let input;
+      let output;
+      let subject;
+
+      class Plugin extends Filter {
+        constructor(inputTree, options) {
+          super(inputTree, options);
+          this.shouldFail = true;
+        }
+
+        processString(content) {
+          // every other file fails to build
+          let shouldFail = this.shouldFail;
+          this.shouldFail = !this.shouldFail;
+
+          return new Promise((resolve, reject) => {
+            setTimeout(() => {
+              if (shouldFail) {
+                reject('file failed for some reason');
+              }
+              else {
+                resolve(content);
+              }
+            }, 50);
+          });
+        }
+      }
+
+      beforeEach(co.wrap(function* () {
+        process.env.JOBS = '4';
+        input = yield createTempDir();
+        subject = new Plugin(input.path(), { async:true });
+        output = createBuilder(subject);
+      }));
+
+      afterEach(co.wrap(function* () {
+        delete process.env.JOBS;
+        yield input.dispose();
+        yield output.dispose();
+      }));
+
+      it('completes all pending work before returning', co.wrap(function* () {
+        input.write({
+          'index0.js': 'console.log("hi")',
+          'index1.js': 'console.log("hi")',
+          'index2.js': 'console.log("hi")',
+          'index3.js': 'console.log("hi")',
+        });
+
+        let didFail = false;
+        try {
+          yield output.build();
+        } catch(error) {
+          didFail = true;
+          expect(error.message).to.contain('file failed for some reason', 'error message text should match');
+        }
+        expect(didFail).to.eql(true, 'build should fail');
+        expect(output.read(), 'should write the files that did not fail').to.deep.equal({
+          'index1.js': 'console.log("hi")',
+          'index3.js': 'console.log("hi")',
         });
       }));
     });
@@ -468,6 +545,20 @@ describe('Filter', function() {
     expect(awk.processString.callCount).to.equal(3);
   }));
 
+  it('targetExtension work for multiple extensions - async', co.wrap(function* () {
+    let subject = new Rot13AsyncFilter(fixturePath('a'), {
+      targetExtension: 'foo',
+      extensions: ['js', 'md'],
+      async: true,
+    });
+    let output = createBuilder(subject);
+
+    yield output.build();
+
+    expect(output.read().dir['a']['README.foo']).to.equal('Avprfg pngf va arrq bs ubzrf');
+    expect(output.read().dir['a']['foo.foo']).to.equal('Avprfg qbtf va arrq bs ubzrf');
+  }));
+
   it('handles directories that older versions of walkSync do not sort lexicographically', co.wrap(function* () {
     let builder = makeBuilder(Rot13Filter, fixturePath('b'), awk => {
       sinon.spy(awk, 'processString');
@@ -585,33 +676,62 @@ describe('Filter', function() {
     expect(file(results.directory + '/a/foo.js')).to.exist;
   }));
 
-  it('replaces stale entries', co.wrap(function* () {
+  describe('stale entries', function() {
     let fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
-
-    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
-
-    let results = yield builder('dir', {
-      glob: '**/*.md',
-      search: 'dogs',
-      replace: 'cats'
+    afterEach(function() {
+      write(fileForChange, 'Nicest cats in need of homes');
     });
 
-    expect(file(fileForChange)).to.exist;
+    it('replaces stale entries', co.wrap(function* () {
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
 
-    write(fileForChange, 'such changes');
+      let results = yield builder('dir', {
+        glob: '**/*.md',
+        search: 'dogs',
+        replace: 'cats'
+      });
 
-    expect(file(fileForChange)).to.exist;
+      expect(file(fileForChange)).to.exist;
 
-    results = yield results.builder();
+      write(fileForChange, 'such changes');
 
-    expect(file(fileForChange)).to.exist;
+      expect(file(fileForChange)).to.exist;
 
-    write(fileForChange, 'such changes');
+      results = yield results.builder();
 
-    expect(file(fileForChange)).to.exist;
+      expect(file(fileForChange)).to.exist;
 
-    write(fileForChange, 'Nicest cats in need of homes');
-  }));
+      write(fileForChange, 'such changes');
+
+      expect(file(fileForChange)).to.exist;
+    }));
+
+    it('replaces stale entries - async', co.wrap(function* () {
+      let subject = new ReplaceAsyncFilter(fixturePath('a'), {
+        glob: '**/*.md',
+        search: 'cats',
+        replace: 'dogs',
+        async: true,
+      });
+      let output = createBuilder(subject);
+
+      yield output.build();
+
+      expect(file(output.builder.outputPath + '/dir/a/README.md')).to.equal('Nicest dogs in need of homes');
+
+      expect(file(fileForChange)).to.exist;
+
+      write(fileForChange, 'such changes');
+
+      expect(file(fileForChange)).to.exist;
+
+      yield output.build();
+
+      expect(file(output.builder.outputPath + '/dir/a/README.md')).to.equal('such changes');
+    }));
+
+
+  });
 
   it('does not overwrite core options if they are not present', function() {
     function F(inputTree, options) {
@@ -646,6 +766,22 @@ describe('Filter', function() {
       outputEncoding: 'utf8'
     }).outputEncoding).to.equal('utf8');
   });
+
+  it('reports heimdall timing correctly for async work', co.wrap(function* () {
+    heimdall._reset();
+    let subject = new Rot13AsyncFilter(fixturePath('a'), {
+      targetExtension: 'foo',
+      extensions: ['js', 'md'],
+      async: true,
+    });
+    let output = createBuilder(subject);
+
+    yield output.build();
+
+    var applyPatchesNode = heimdall.toJSON().nodes.filter(elem => elem.id.name === 'applyPatches')[0];
+    var selfTime = applyPatchesNode.stats.time.self / (1000 * 1000); // convert to ms
+    expect(selfTime).to.be.above(50, 'reported time should include the 50ms timeout in Rot13AsyncFilter');
+  }));
 
   describe('persistent cache', function() {
     function F(inputTree, options) {
@@ -847,4 +983,128 @@ describe('Filter', function() {
         'Nicest dogs in need of homes')).to.eql(false);
     }));
   });
+
+  describe('concurrency', function() {
+    afterEach(function() {
+      delete process.env.JOBS;
+    });
+
+    it('sets concurrency using environment variable', function() {
+      process.env.JOBS = '12';
+      let filter = MyFilter('.', {});
+      expect(filter.concurrency).to.equal(12);
+    });
+
+    it('sets concurrency using options.concurrency', function() {
+      process.env.JOBS = '12';
+      let filter = MyFilter('.', { concurrency: 15 });
+      expect(filter.concurrency).to.equal(15);
+    });
+
+    describe('CPU detection', function() {
+      afterEach(function() {
+        os.cpus.restore();
+      });
+
+      it('should set to detected CPUs - 1', function() {
+        sinon.stub(os, 'cpus').callsFake(() => ['cpu0', 'cpu1', 'cpu2']);
+        let filter = MyFilter('.', {});
+        expect(filter.concurrency).to.equal(2);
+      });
+
+      it('should have a min of 1', function() {
+        sinon.stub(os, 'cpus').callsFake(() => []);
+        let filter = MyFilter('.', {});
+        expect(filter.concurrency).to.equal(1);
+      });
+    });
+  });
+});
+
+describe('throttling', function() {
+  let testHelpers = require('broccoli-test-helper');
+  let createBuilder = testHelpers.createBuilder;
+  let createTempDir = testHelpers.createTempDir;
+
+  let input;
+  let output;
+  let subject;
+
+  class Plugin extends Filter {
+    constructor(inputTree, options) {
+      super(inputTree, options);
+      this.shouldFail = true;
+    }
+
+    processString(content) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(content);
+        }, 100);
+      });
+    }
+  }
+
+  beforeEach(co.wrap(function* () {
+    input = yield createTempDir();
+    input.write({
+      'index0.js': 'console.log("hi")',
+      'index1.js': 'console.log("hi")',
+      'index2.js': 'console.log("hi")',
+      'index3.js': 'console.log("hi")',
+    });
+  }));
+
+  afterEach(co.wrap(function* () {
+    delete process.env.JOBS;
+    expect(output.read(), 'all files should be written').to.deep.equal({
+      'index0.js': 'console.log("hi")',
+      'index1.js': 'console.log("hi")',
+      'index2.js': 'console.log("hi")',
+      'index3.js': 'console.log("hi")',
+    });
+
+    yield input.dispose();
+    yield output.dispose();
+  }));
+
+  it('throttles operations to 1 concurrent job', co.wrap(function* () {
+    process.env.JOBS = '1';
+    subject = new Plugin(input.path(), { async:true });
+    output = createBuilder(subject);
+    expect(subject.concurrency).to.equal(1);
+
+    var startTime = process.hrtime();
+
+    yield output.build();
+
+    expect(millisecondsSince(startTime)).to.be.above(400, '4 groups of 1 file each, taking 100ms each, should take at least 400ms');
+  }));
+
+  it('throttles operations to 2 concurrent jobs', co.wrap(function* () {
+    process.env.JOBS = '2';
+    subject = new Plugin(input.path(), { async:true });
+    output = createBuilder(subject);
+    expect(subject.concurrency).to.equal(2);
+
+    var startTime = process.hrtime();
+
+    yield output.build();
+
+    expect(millisecondsSince(startTime)).to.be.above(200, '2 groups of 2 files each, taking 100ms each, should take at least 200ms');
+  }));
+
+  it('throttles operations to 4 concurrent jobs', co.wrap(function* () {
+    process.env.JOBS = '4';
+    subject = new Plugin(input.path(), { async:true });
+    output = createBuilder(subject);
+    expect(subject.concurrency).to.equal(4);
+
+    var startTime = process.hrtime();
+
+    yield output.build();
+
+    expect(millisecondsSince(startTime)).to.be.above(100, '1 group of all 4 files, taking 100ms each, should take at least 100ms');
+    expect(millisecondsSince(startTime)).to.be.below(200, 'all 4 jobs running concurrently in 1 group should finish in about 100ms');
+  }));
 });

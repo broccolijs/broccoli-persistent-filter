@@ -16,7 +16,7 @@ var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
 var FSTree = require('fs-tree-diff');
 var heimdall = require('heimdalljs');
-
+var queue = require('async-promise-queue');
 
 function ApplyPatchesSchema() {
   this.mkdir = 0;
@@ -38,6 +38,8 @@ function DerivePatchesSchema() {
   this.patches = 0;
   this.entries = 0;
 }
+
+const worker = queue.async.asyncify((doWork) => doWork());
 
 module.exports = Filter;
 
@@ -78,6 +80,7 @@ function Filter(inputTree, options) {
     if (options.persist) {
       this.processor.setStrategy(require('./lib/strategies/persistent'));
     }
+    this.async = (options.async === true);
   }
 
   this.processor.init(this);
@@ -85,6 +88,8 @@ function Filter(inputTree, options) {
   this._canProcessCache = Object.create(null);
   this._destFilePathCache = Object.create(null);
   this._needsReset = false;
+
+  this.concurrency = (options && options.concurrency) || Number(process.env.JOBS) || Math.max(require('os').cpus().length - 1, 1);
 }
 
 function nanosecondsSince(time) {
@@ -135,48 +140,67 @@ Filter.prototype.build = function() {
   instrumentation.stop();
   var plugin = this;
 
+  // used with options.async = true to allow 'create' and 'change' operations to complete async
+  var pendingWork = [];
+
   return new Promise(function(resolve) {
     resolve(heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
       var prevTime = process.hrtime();
+      return new Promise(function(resolve) {
+        var result = mapSeries(patches, function(patch) {
+          var operation = patch[0];
+          var relativePath = patch[1];
+          var entry = patch[2];
+          var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath, entry) || relativePath);
+          var outputFilePath = outputPath;
 
-      var result = mapSeries(patches, function(patch) {
-        var operation = patch[0];
-        var relativePath = patch[1];
-        var entry = patch[2];
-        var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath, entry) || relativePath);
-        var outputFilePath = outputPath;
+          plugin._logger.debug('[operation:%s] %s', operation, relativePath);
 
-        plugin._logger.debug('[operation:%s] %s', operation, relativePath);
-
-        switch (operation) {
-          case 'mkdir': {
-            instrumentation.mkdir++;
-            return fs.mkdirSync(outputPath);
-          } case 'rmdir': {
-            instrumentation.rmdir++;
-            return fs.rmdirSync(outputPath);
-          } case 'unlink': {
-            instrumentation.unlink++;
-            return fs.unlinkSync(outputPath);
-          } case 'change': {
-            instrumentation.change++;
-            return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
-          } case 'create': {
-            instrumentation.create++;
-            return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
-          } default: {
-            instrumentation.other++;
+          switch (operation) {
+            case 'mkdir': {
+              instrumentation.mkdir++;
+              return fs.mkdirSync(outputPath);
+            } case 'rmdir': {
+              instrumentation.rmdir++;
+              return fs.rmdirSync(outputPath);
+            } case 'unlink': {
+              instrumentation.unlink++;
+              return fs.unlinkSync(outputPath);
+            } case 'change': {
+              // wrap this in a function so it doesn't actually run yet, and can be throttled
+              var changeOperation = function() {
+                instrumentation.change++;
+                return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+              };
+              if (plugin.async) {
+                pendingWork.push(changeOperation);
+                return;
+              }
+              return changeOperation();
+            } case 'create': {
+              // wrap this in a function so it doesn't actually run yet, and can be throttled
+              var createOperation = function() {
+                instrumentation.create++;
+                return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+              };
+              if (plugin.async) {
+                pendingWork.push(createOperation);
+                return;
+              }
+              return createOperation();
+            } default: {
+              instrumentation.other++;
+            }
           }
-        }
+        });
+        resolve(result);
+      }).then(() => queue(worker, pendingWork, plugin.concurrency)
+      ).then((result) => {
+        plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+        plugin._needsReset = false;
+        return result;
       });
-
-      plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
-
-      return result;
     }));
-  }).then(function(result) {
-    plugin._needsReset = false;
-    return result;
   });
 };
 
