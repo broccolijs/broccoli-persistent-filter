@@ -1,6 +1,6 @@
 {
   "name": "broccoli-persistent-filter",
-  "version": "v1.4.1",
+  "version": "1.4.2",
   "description": "broccoli filter but with a persistent cache",
   "author": "Stefan Penner <stefan.penner@gmail.com>",
   "main": "index.js",
