@@ -5,6 +5,7 @@ require('babel-register')({
   presets: [ 'es2015' ],
   ignore: function(filename) {
     return [
+      // whitelist
       'node_modules/broccoli-test-helper/',
       'test/helpers/'
     ].every(function(needsCompile) {
