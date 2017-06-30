@@ -64,7 +64,8 @@ function Filter(inputTree, options) {
   Plugin.call(this, [inputTree], {
     name: (options && options.name) || this.name || loggerName,
     annotation: (options && options.annotation) || this.annotation || annotation,
-    persistentOutput: true
+    persistentOutput: true,
+    sideEffectFree: true,
   });
 
   this.processor = new Processor(options);
@@ -127,6 +128,9 @@ Filter.prototype.build = function() {
   this.currentTree = nextTree;
 
   var patches = currentTree.calculatePatch(nextTree);
+  if (patches.length > 0) {
+    this.revised();
+  }
 
   instrumentation.stats.patches = patches.length;
   instrumentation.stats.entries = entries.length;
