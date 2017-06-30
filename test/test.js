@@ -559,7 +559,7 @@ describe('Filter', function() {
   }));
 
   it('targetExtension work for multiple extensions - async', co.wrap(function* () {
-    this.timeout(10*1000); // sometimes takes >2s when run with node 0.12
+    this.timeout(30*1000); // takes >10s when run with node 0.12
     let subject = new Rot13AsyncFilter(fixturePath('a'), {
       targetExtension: 'foo',
       extensions: ['js', 'md'],
@@ -821,7 +821,7 @@ describe('Filter', function() {
     });
 
     it('initializes cache', function() {
-      this.timeout(10*1000); // sometimes takes >2s when run with node 0.12
+      this.timeout(15*1000); // takes >5s when run with node 0.12
       let f = new F(fixturePath('a'), {
         persist: true
       });
