@@ -1,5 +1,18 @@
 'use strict';
 
+// must transpile these to run the tests with node 0.12
+require('babel-register')({
+  presets: [ 'es2015' ],
+  ignore: function(filename) {
+    return [
+      'node_modules/broccoli-test-helper/',
+      'test/helpers/'
+    ].every(function(needsCompile) {
+      return filename.indexOf(needsCompile) < 0;
+    });
+  }
+});
+
 const chai = require('chai');
 const expect = chai.expect;
 const chaiAsPromised = require('chai-as-promised');
@@ -546,6 +559,7 @@ describe('Filter', function() {
   }));
 
   it('targetExtension work for multiple extensions - async', co.wrap(function* () {
+    this.timeout(5*1000); // sometimes takes >2s when run with node 0.12
     let subject = new Rot13AsyncFilter(fixturePath('a'), {
       targetExtension: 'foo',
       extensions: ['js', 'md'],
@@ -807,6 +821,7 @@ describe('Filter', function() {
     });
 
     it('initializes cache', function() {
+      this.timeout(5*1000); // sometimes takes >2s when run with node 0.12
       let f = new F(fixturePath('a'), {
         persist: true
       });
