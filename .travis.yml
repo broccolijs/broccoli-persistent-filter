@@ -1,5 +1,6 @@
 language: node_js
 node_js:
+  - '0.12'
   - '4'
   - '6'
   - '7'
@@ -8,7 +9,7 @@ install:
   - time npm install
 
 script:
-  - npm run test:coverage
+  - npm run test:ci
 
 after_success:
   - cat ./coverage/lcov.info | npm run coveralls
