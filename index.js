@@ -101,15 +101,23 @@ Filter.prototype.build = function() {
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
   var instrumentation = heimdall.start('derivePatches - persistent filter', DerivePatchesSchema);
+
+  this._isRebuild = this._isRebuild && (this.out.parent || this.out.size);
+  if(this._isRebuild) {
+    this._prevEntries = this._entries;
+  }
+
   const patches = this.in[0].changes();
 
   console.log(`----------------patches from ${this._name + (this._annotation != null ? ' (' + this._annotation + ')' : '')}`);
+  
   patches.forEach(patch => {
     console.log(patch[0] + ' ' + chompPathSep(patch[1]));
   });
 
   instrumentation.stats.patchesLength = patches.length;
   instrumentation.stop();
+
 
   return heimdall.node('applyPatches - persistent filter', ApplyPatchesSchema, function(instrumentation) {
     var prevTime = process.hrtime();
@@ -289,7 +297,7 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     }
 
     if (isChange) {
-      var isSame = this.in[0].readFileSync(relativePath, 'UTF-8') === outputString;
+      var isSame = this.out.readFileSync(relativePath, 'UTF-8') === outputString;
 
       if (isSame) {
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
