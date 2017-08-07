@@ -1,5 +1,6 @@
 # broccoli-persistent-filter
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/stefanpenner/broccoli-persistent-filter.svg)](https://greenkeeper.io/)
 [![Build Status](https://travis-ci.org/stefanpenner/broccoli-persistent-filter.svg?branch=master)](https://travis-ci.org/stefanpenner/broccoli-persistent-filter)
 [![Build status](https://ci.appveyor.com/api/projects/status/gvt0rheb1c2c4jwd/branch/master?svg=true)](https://ci.appveyor.com/project/embercli/broccoli-persistent-filter/branch/master)
 
@@ -76,9 +77,14 @@ class Filter {
 * `outputEncoding`: The character encoding used for writing output files after
   processing (default: `'utf8'`). For binary files, pass `null` and return a
   `Buffer` object from `processString`.
+* `async`: Whether the `create` and `change` file operations are allowed to
+  complete asynchronously (true|false, default: false)
 * `name`, `annotation`: Same as
   [broccoli-plugin](https://github.com/broccolijs/broccoli-plugin#new-plugininputnodes-options);
   see there.
+* `concurrency`: Used with `async: true`. The number of operations that can be
+  run concurrently. This overrides the value set with `JOBS=n` environment variable.
+  (default: the number of detected CPU cores - 1, with a min of 1)
 
 All options except `name` and `annotation` can also be set on the prototype
 instead of being passed into the constructor.
@@ -154,6 +160,20 @@ It is recommended that persistent re-builds is opt-in by the consuming plugin au
 ```js
 var myTree = new SomePlugin('lib', { persist: true });
 ```
+
+### Warning
+
+By using the persistent cache, a lot of small files will be created on the disk without being deleted.
+This might use all the inodes of your disk.
+You need to make sure to clean regularly the old files or configure your system to do so.
+
+On OSX, [files that aren't accessed in three days are deleted from `/tmp`](http://superuser.com/a/187105).  
+On systems using systemd, [systemd-tmpfiles](https://www.freedesktop.org/software/systemd/man/systemd-tmpfiles.html) should already be present and regularly clean up the `/tmp` directory.  
+On Debian-like systems, you can use [tmpreaper](https://packages.debian.org/stable/tmpreaper).  
+On RedHad-like systems, you can use [tmpwatch](https://fedorahosted.org/tmpwatch/).
+
+By default, the files are stored in the [operatin system's default directory for temporary files](https://nodejs.org/api/os.html#os_os_tmpdir),
+but you can change this location by setting the `BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT` environment variable to the path of another folder.
 
 ## FAQ
 

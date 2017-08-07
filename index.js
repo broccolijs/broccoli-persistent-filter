@@ -5,13 +5,13 @@ var Promise = require('rsvp').Promise;
 var Plugin = require('broccoli-plugin');
 var mapSeries = require('promise-map-series');
 var debugGenerator = require('heimdalljs-logger');
-var md5Hex = require('md5-hex');
+var md5Hex = require('./lib/md5-hex');
 var Processor = require('./lib/processor');
 var defaultProccessor = require('./lib/strategies/default');
 var hashForDep = require('hash-for-dep');
-var BlankObject = require('blank-object');
-var FSTree = require('fs-tree-diff');
 var heimdall = require('heimdalljs');
+var queue = require('async-promise-queue');
+const isDirectory = require('fs-tree-diff/lib/entry').isDirectory;
 
 
 function ApplyPatchesSchema() {
@@ -34,6 +34,8 @@ function DerivePatchesSchema() {
   this.patches = 0;
   this.entries = 0;
 }
+
+var worker = queue.async.asyncify(function(doWork) { return doWork(); });
 
 module.exports = Filter;
 
@@ -64,7 +66,6 @@ function Filter(inputTree, options) {
 
   this.processor = new Processor(options);
   this.processor.setStrategy(defaultProccessor);
-  this.currentTree = new FSTree();
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
   if (options) {
     if (options.extensions != null)      this.extensions = options.extensions;
@@ -74,11 +75,15 @@ function Filter(inputTree, options) {
     if (options.persist) {
       this.processor.setStrategy(require('./lib/strategies/persistent'));
     }
+    this.async = (options.async === true);
   }
 
   this.processor.init(this);
-  this._canProcessCache = new BlankObject();
-  this._destFilePathCache = new BlankObject();
+  this._canProcessCache = Object.create(null);
+  this._destFilePathCache = Object.create(null);
+  this._needsReset = false;
+
+  this.concurrency = (options && options.concurrency) || Number(process.env.JOBS) || Math.max(require('os').cpus().length - 1, 1);
 }
 
 function nanosecondsSince(time) {
@@ -97,15 +102,24 @@ function timeSince(time) {
   return (deltaNS / 1e6).toFixed(2) +' ms';
 }
 
+function chompPathSep(path) {
+  // strip trailing path.sep (but both seps on posix and win32);
+  return path.replace(/(\/|\\)$/, '');
+}
+
 Filter.prototype.build = function() {
+
+  //TODO: Should remove this when Builder is fixed.
+  if (this._needsReset) {
+    this.out.undoRootSymlink();
+    this.out.emptySync('');
+  }
+  this._needsReset = true;
+
+
   var srcDir = this.inputPaths[0];
   var destDir = this.outputPath;
   var instrumentation = heimdall.start('derivePatches - persistent filter', DerivePatchesSchema);
-
-  this._isRebuild = this._isRebuild && (this.out.parent || this.out.size);
-  if(this._isRebuild) {
-    this._prevEntries = this._entries;
-  }
 
   const patches = this.in[0].changes();
 
@@ -117,60 +131,79 @@ Filter.prototype.build = function() {
 
   instrumentation.stats.patchesLength = patches.length;
   instrumentation.stop();
+  var plugin = this;
 
 
-  return heimdall.node('applyPatches - persistent filter', ApplyPatchesSchema, function(instrumentation) {
-    var prevTime = process.hrtime();
+  // used with options.async = true to allow 'create' and 'change' operations to complete async
+  var pendingWork = [];
 
-    var result = mapSeries(patches, function(patch) {
-      var operation = patch[0];
-      var relativePath = patch[1];
-      var entry = patch[2];
-      var destPath = this.getDestFilePath(relativePath) || relativePath;
+  return new Promise(function(resolve) {
+    resolve(heimdall.node('applyPatches - persistent filter', ApplyPatchesSchema, function(instrumentation) {
+      var prevTime = process.hrtime();
+      return new Promise(function(resolve) {
+        var result = mapSeries(patches, function(patch) {
+          var operation = patch[0];
+          var relativePath = patch[1];
+          var entry = patch[2];
+          var destPath = plugin.getDestFilePath(entry) || relativePath;
+          plugin._logger.debug('[operation:%s] %s', operation, relativePath);
 
-      this._logger.debug('[operation:%s] %s', operation, relativePath);
-      switch (operation) {
-        case 'mkdir': {
-          instrumentation.mkdir++;
-          return this.out.mkdirSync(relativePath);
-        } case 'mkdirp'  : {
-          instrumentation.mkdirp++;
-          return this.out.mkdirpSync(relativePath);
-        } case 'rmdir': {
-          instrumentation.rmdir++;
-        return this.out.rmdirSync(relativePath);
-        } case 'unlink': {
-          instrumentation.unlink++;
-          return this.out.unlinkSync(destPath);
-        } case 'change': {
-          instrumentation.change++;
-          return this._handleFile(relativePath, srcDir, destDir, entry,  true, instrumentation);
-        } case 'create': {
-          instrumentation.create++;
-          return this._handleFile(relativePath, srcDir, destDir, entry,  false, instrumentation);
-        } default: {
-          instrumentation.other++;
-        }
-      }
-    }, this);
-
-    this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
-    return result;
-
-  }, this);
+          switch (operation) {
+            case 'mkdir': {
+              instrumentation.mkdir++;
+              return plugin.out.mkdirSync(relativePath);
+            } case 'mkdirp'  : { // todo: Check if mkdirp can be removed
+              instrumentation.mkdirp++;
+              return plugin.out.mkdirpSync(relativePath);
+            } case 'rmdir': {
+              instrumentation.rmdir++;
+              return plugin.out.rmdirSync(relativePath);
+            } case 'unlink': {
+              instrumentation.unlink++;
+              return plugin.out.unlinkSync(destPath);
+            } case 'change': {
+              // wrap this in a function so it doesn't actually run yet, and can be throttled
+              var changeOperation = function() {
+                instrumentation.change++;
+                return plugin._handleFile(relativePath, srcDir, destDir, entry, true, instrumentation);
+              };
+              if (plugin.async) {
+                pendingWork.push(changeOperation);
+                return;
+              }
+              return changeOperation();
+            } case 'create': {
+              // wrap this in a function so it doesn't actually run yet, and can be throttled
+              var createOperation = function() {
+                instrumentation.create++;
+                return plugin._handleFile(relativePath, srcDir, destDir, entry, false, instrumentation);
+              };
+              if (plugin.async) {
+                pendingWork.push(createOperation);
+                return;
+              }
+              return createOperation();
+            } default: {
+              instrumentation.other++;
+            }
+          }
+        });
+        resolve(result);
+      }).then(function() {
+        return queue(worker, pendingWork, plugin.concurrency);
+      }).then(function(result) {
+        plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+        plugin._needsReset = false;
+        return result;
+      });
+    }));
+  });
 };
-
-function chompPathSep(path) {
-  // strip trailing path.sep (but both seps on posix and win32);
-  return path.replace(/(\/|\\)$/, '');
-}
 
 
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, isChange, instrumentation) {
-
-  if (this.canProcessFile(relativePath)) {
+  if (this.canProcessFile(entry)) {
     instrumentation.processed++;
-
     return this.processAndCacheFile(srcDir, destDir, entry, isChange, instrumentation);
   } else {
     instrumentation.linked++;
@@ -217,11 +250,17 @@ Filter.prototype.cacheKeyProcessString = function(string, relativePath) {
 };
 
 Filter.prototype.canProcessFile =
-    function canProcessFile(relativePath) {
-      return !!this.getDestFilePath(relativePath);
+   function canProcessFile(entry) {
+  return !!this.getDestFilePath(entry);
 };
 
-Filter.prototype.getDestFilePath = function(relativePath) {
+Filter.prototype.getDestFilePath = function(entry) { 
+
+  if (entry && isDirectory(entry)) {
+    return null;
+  }
+  let relativePath = entry.relativePath;
+
   if (this.extensions == null) {
     return relativePath;
   }
@@ -246,8 +285,7 @@ Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, isChange
 
   return Promise.resolve().
       then(function asyncProcessFile() {
-
-    return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation);
+        return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation, entry);
       }).
       then(undefined,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
@@ -267,18 +305,17 @@ function invoke(context, fn, args) {
   });
 }
 
-Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange, instrumentation) {
+Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange, instrumentation, entry) {
   var filter = this;
   var inputEncoding = this.inputEncoding;
   var outputEncoding = this.outputEncoding;
-
   if (inputEncoding === undefined)  inputEncoding  = 'utf8';
   if (outputEncoding === undefined) outputEncoding = 'utf8';
 
-
-   var contents = this.in[0].readFileSync(relativePath, {
+  var contents = this.in[0].readFileSync(relativePath, {
     encoding: inputEncoding
   });
+
 
   instrumentation.processString++;
 
@@ -288,16 +325,16 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
   return string.then(function asyncOutputFilteredFile(outputString) {
 
     instrumentation.processStringTime += nanosecondsSince(processStringStart);
-    var destRelativePath = filter.getDestFilePath(relativePath);
+    var destRelativePath = filter.getDestFilePath(entry);
 
     if (destRelativePath == null) {
       throw new Error('canProcessFile("' + relativePath +
                       '") is true, but getDestFilePath("' +
                       relativePath + '") is null');
     }
-
     if (isChange) {
-      var isSame = this.out.readFileSync(relativePath, 'UTF-8') === outputString;
+
+      var isSame = this.out.readFileSync(destRelativePath, 'UTF-8') === outputString;
 
       if (isSame) {
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);

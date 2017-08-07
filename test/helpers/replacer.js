@@ -4,6 +4,7 @@ var inherits = require('util').inherits;
 var path = require('path');
 var Filter = require('../../');
 var minimatch = require('minimatch');
+const Entry = require('fs-tree-diff/lib/entry');
 
 module.exports = ReplaceFilter;
 function ReplaceFilter(inputTree, _options) {
@@ -22,9 +23,11 @@ function ReplaceFilter(inputTree, _options) {
 
 inherits(ReplaceFilter, Filter);
 
-ReplaceFilter.prototype.getDestFilePath = function(relativePath) {
+ReplaceFilter.prototype.getDestFilePath = function(entry) {
+  let relativePath = entry.relativePath;
   if (this._glob === undefined) {
-    return Filter.prototype.getDestFilePath.call(this, relativePath);
+       return Filter.prototype.getDestFilePath.call(this, entry);
+
   }
   return minimatch(relativePath, this._glob) ? relativePath : null;
 };
