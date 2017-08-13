@@ -36,7 +36,6 @@
     "async-disk-cache": "^1.2.1",
     "async-promise-queue": "^1.0.3",
     "broccoli-plugin": "^1.0.0",
-    "crypto": "0.0.3",
     "fs-tree-diff": "^0.5.2",
     "hash-for-dep": "^1.0.2",
     "heimdalljs": "^0.2.1",
