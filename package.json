@@ -43,7 +43,7 @@
     "mkdirp": "^0.5.1",
     "promise-map-series": "^0.2.1",
     "rimraf": "^2.6.1",
-    "rsvp": "^3.0.18",
+    "rsvp": "^4.7.0",
     "symlink-or-copy": "^1.0.1",
     "walk-sync": "^0.3.1"
   },
