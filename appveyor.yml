@@ -11,23 +11,18 @@ environment:
 install:
   # Get the latest stable version of Node 0.STABLE.latest
   - ps: Install-Product node $env:nodejs_version
-  # Typical npm stuff.
-  - md C:\nc
-  - npm install -g npm@latest
-  # Workaround https://github.com/npm/npm/wiki/Troubleshooting#upgrading-on-windows
-  - set PATH=%APPDATA%\npm;%PATH%
-  - npm config set cache C:\nc
-  - npm version
-  - npm install
+  - yarn install
 
 # Post-install test scripts.
 test_script:
   # Output useful info for debugging.
-  - npm version
-  - cmd: npm test
+  - cmd: yarn test
 
 # Don't actually build.
 build: off
 
 # Set build version format here instead of in the admin panel.
 version: "{build}"
+
+cache:
+ - "%LOCALAPPDATA%\\Yarn"

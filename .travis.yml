@@ -5,6 +5,8 @@ node_js:
   - '6'
   - '7'
 
+cache: yarn
+
 install:
   - time npm install
 
