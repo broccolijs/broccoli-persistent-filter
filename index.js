@@ -267,7 +267,11 @@ Filter.prototype.isDirectory = function(relativePath, entry) {
   var srcDir = this.inputPaths[0];
   var path = srcDir + '/' + relativePath;
 
-  return (entry || fs.lstatSync(path)).isDirectory();
+  try {
+    return (entry || fs.lstatSync(path)).isDirectory();
+  } catch (e) {
+    return false;
+  }
 };
 
 Filter.prototype.getDestFilePath = function(relativePath, entry) {
