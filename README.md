@@ -92,7 +92,7 @@ instead of being passed into the constructor.
 ### Example Usage
 
 ```js
-var Filter = require('broccoli-filter');
+var Filter = require('broccoli-persistent-filter');
 
 Awk.prototype = Object.create(Filter.prototype);
 Awk.prototype.constructor = Awk;
