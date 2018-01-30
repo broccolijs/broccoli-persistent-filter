@@ -60,7 +60,7 @@
     "coveralls": "^3.0.0",
     "istanbul": "^0.4.2",
     "minimatch": "^3.0.2",
-    "mocha": "^3.0.0",
+    "mocha": "^4.0.0",
     "mocha-jshint": "^2.3.1",
     "sinon": "^2.1.0",
     "sinon-chai": "^2.8.0"
