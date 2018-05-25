@@ -1,45 +1,49 @@
 'use strict';
 
-var fs = require('fs');
-var path = require('path');
-var mkdirp = require('mkdirp');
-var rimraf = require('rimraf');
-var Promise = require('rsvp').Promise;
-var Plugin = require('broccoli-plugin');
-var walkSync = require('walk-sync');
-var mapSeries = require('promise-map-series');
-var symlinkOrCopySync = require('symlink-or-copy').sync;
-var debugGenerator = require('heimdalljs-logger');
-var md5Hex = require('./lib/md5-hex');
-var Processor = require('./lib/processor');
-var defaultProccessor = require('./lib/strategies/default');
-var hashForDep = require('hash-for-dep');
-var FSTree = require('fs-tree-diff');
-var heimdall = require('heimdalljs');
-var queue = require('async-promise-queue');
+const fs = require('fs');
+const path = require('path');
+const mkdirp = require('mkdirp');
+const rimraf = require('rimraf');
+const Promise = require('rsvp').Promise;
+const Plugin = require('broccoli-plugin');
+const walkSync = require('walk-sync');
+const mapSeries = require('promise-map-series');
+const symlinkOrCopySync = require('symlink-or-copy').sync;
+const debugGenerator = require('heimdalljs-logger');
+const md5Hex = require('./lib/md5-hex');
+const Processor = require('./lib/processor');
+const defaultProccessor = require('./lib/strategies/default');
+const hashForDep = require('hash-for-dep');
+const FSTree = require('fs-tree-diff');
+const heimdall = require('heimdalljs');
+const queue = require('async-promise-queue');
 
-function ApplyPatchesSchema() {
-  this.mkdir = 0;
-  this.rmdir = 0;
-  this.unlink = 0;
-  this.change = 0;
-  this.create = 0;
-  this.other = 0;
-  this.processed = 0;
-  this.linked = 0;
+class ApplyPatchesSchema {
+  constructor() {
+    this.mkdir = 0;
+    this.rmdir = 0;
+    this.unlink = 0;
+    this.change = 0;
+    this.create = 0;
+    this.other = 0;
+    this.processed = 0;
+    this.linked = 0;
 
-  this.processString = 0;
-  this.processStringTime = 0;
-  this.persistentCacheHit = 0;
-  this.persistentCachePrime = 0;
+    this.processString = 0;
+    this.processStringTime = 0;
+    this.persistentCacheHit = 0;
+    this.persistentCachePrime = 0;
+  }
 }
 
-function DerivePatchesSchema() {
-  this.patches = 0;
-  this.entries = 0;
+class DerivePatchesSchema {
+  constructor() {
+    this.patches = 0;
+    this.entries = 0;
+  }
 }
 
-var worker = queue.async.asyncify(function(doWork) { return doWork(); });
+const worker = queue.async.asyncify(doWork => doWork());
 
 module.exports = Filter;
 
@@ -52,8 +56,8 @@ function Filter(inputTree, options) {
     throw new TypeError('Filter is an abstract class and must be sub-classed');
   }
 
-  var loggerName = 'broccoli-persistent-filter:' + (this.constructor.name);
-  var annotation = (options && options.annotation) || this.annotation || this.description;
+  let loggerName = 'broccoli-persistent-filter:' + (this.constructor.name);
+  let annotation = (options && options.annotation) || this.annotation || this.description;
 
   if (annotation) {
     loggerName += ' > [' + annotation + ']';
@@ -93,12 +97,12 @@ function Filter(inputTree, options) {
 }
 
 function nanosecondsSince(time) {
-  var delta = process.hrtime(time);
+  let delta = process.hrtime(time);
   return delta[0] * 1e9 + delta[1];
 }
 
 function timeSince(time) {
-  var deltaNS = nanosecondsSince(time);
+  let deltaNS = nanosecondsSince(time);
   return (deltaNS / 1e6).toFixed(2) +' ms';
 }
 
@@ -111,22 +115,22 @@ Filter.prototype.build = function() {
 
   this._needsReset = true;
 
-  var srcDir = this.inputPaths[0];
-  var destDir = this.outputPath;
+  let srcDir = this.inputPaths[0];
+  let destDir = this.outputPath;
 
-  var prevTime = process.hrtime();
-  var instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
+  let prevTime = process.hrtime();
+  let instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
-  var walkStart = process.hrtime();
-  var entries = walkSync.entries(srcDir);
-  var walkDuration = timeSince(walkStart);
+  let walkStart = process.hrtime();
+  let entries = walkSync.entries(srcDir);
+  let walkDuration = timeSince(walkStart);
 
-  var nextTree = FSTree.fromEntries(entries);
-  var currentTree = this.currentTree;
+  let nextTree = FSTree.fromEntries(entries);
+  let currentTree = this.currentTree;
 
   this.currentTree = nextTree;
 
-  var patches = currentTree.calculatePatch(nextTree);
+  let patches = currentTree.calculatePatch(nextTree);
 
   instrumentation.stats.patches = patches.length;
   instrumentation.stats.entries = entries.length;
@@ -138,70 +142,64 @@ Filter.prototype.build = function() {
   this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
 
   instrumentation.stop();
-  var plugin = this;
 
   // used with options.async = true to allow 'create' and 'change' operations to complete async
-  var pendingWork = [];
+  const pendingWork = [];
 
-  return new Promise(function(resolve) {
-    resolve(heimdall.node('applyPatches', ApplyPatchesSchema, function(instrumentation) {
-      var prevTime = process.hrtime();
-      return new Promise(function(resolve) {
-        var result = mapSeries(patches, function(patch) {
-          var operation = patch[0];
-          var relativePath = patch[1];
-          var entry = patch[2];
-          var outputPath = destDir + '/' + (plugin.getDestFilePath(relativePath, entry) || relativePath);
-          var outputFilePath = outputPath;
+  return heimdall.node('applyPatches', ApplyPatchesSchema, instrumentation => {
+    let prevTime = process.hrtime();
+    return mapSeries(patches, patch => {
+      let operation = patch[0];
+      let relativePath = patch[1];
+      let entry = patch[2];
+      let outputPath = destDir + '/' + (this.getDestFilePath(relativePath, entry) || relativePath);
+      let outputFilePath = outputPath;
 
-          plugin._logger.debug('[operation:%s] %s', operation, relativePath);
+      this._logger.debug('[operation:%s] %s', operation, relativePath);
 
-          switch (operation) {
-            case 'mkdir': {
-              instrumentation.mkdir++;
-              return fs.mkdirSync(outputPath);
-            } case 'rmdir': {
-              instrumentation.rmdir++;
-              return fs.rmdirSync(outputPath);
-            } case 'unlink': {
-              instrumentation.unlink++;
-              return fs.unlinkSync(outputPath);
-            } case 'change': {
-              // wrap this in a function so it doesn't actually run yet, and can be throttled
-              var changeOperation = function() {
-                instrumentation.change++;
-                return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
-              };
-              if (plugin.async) {
-                pendingWork.push(changeOperation);
-                return;
-              }
-              return changeOperation();
-            } case 'create': {
-              // wrap this in a function so it doesn't actually run yet, and can be throttled
-              var createOperation = function() {
-                instrumentation.create++;
-                return plugin._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
-              };
-              if (plugin.async) {
-                pendingWork.push(createOperation);
-                return;
-              }
-              return createOperation();
-            } default: {
-              instrumentation.other++;
-            }
+      switch (operation) {
+        case 'mkdir': {
+          instrumentation.mkdir++;
+          return fs.mkdirSync(outputPath);
+        } case 'rmdir': {
+          instrumentation.rmdir++;
+          return fs.rmdirSync(outputPath);
+        } case 'unlink': {
+          instrumentation.unlink++;
+          return fs.unlinkSync(outputPath);
+        } case 'change': {
+          // wrap this in a function so it doesn't actually run yet, and can be throttled
+          let changeOperation = () => {
+            instrumentation.change++;
+            return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+          };
+          if (this.async) {
+            pendingWork.push(changeOperation);
+            return;
           }
-        });
-        resolve(result);
-      }).then(function() {
-        return queue(worker, pendingWork, plugin.concurrency);
-      }).then(function(result) {
-        plugin._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
-        plugin._needsReset = false;
-        return result;
-      });
-    }));
+          return changeOperation();
+        } case 'create': {
+          // wrap this in a function so it doesn't actually run yet, and can be throttled
+          let createOperation = () => {
+            instrumentation.create++;
+            return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+          };
+          if (this.async) {
+            pendingWork.push(createOperation);
+            return;
+          }
+          return createOperation();
+        } default: {
+          instrumentation.other++;
+        }
+      }
+    }).then(() => {
+      return queue(worker, pendingWork, this.concurrency);
+    }).then((result) => {
+      this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+      this._needsReset = false;
+      return result;
+    });
   });
 };
 
@@ -214,7 +212,7 @@ Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, ou
     if (isChange) {
       fs.unlinkSync(outputPath);
     }
-    var srcPath = srcDir + '/' + relativePath;
+    let srcPath = srcDir + '/' + relativePath;
     return symlinkOrCopySync(srcPath, outputPath);
   }
 };
@@ -264,8 +262,8 @@ Filter.prototype.isDirectory = function(relativePath, entry) {
     return false;
   }
 
-  var srcDir = this.inputPaths[0];
-  var path = srcDir + '/' + relativePath;
+  let srcDir = this.inputPaths[0];
+  let path = srcDir + '/' + relativePath;
 
   return (entry || fs.lstatSync(path)).isDirectory();
 };
@@ -280,8 +278,8 @@ Filter.prototype.getDestFilePath = function(relativePath, entry) {
     return relativePath;
   }
 
-  for (var i = 0, ii = this.extensions.length; i < ii; ++i) {
-    var ext = this.extensions[i];
+  for (let i = 0, ii = this.extensions.length; i < ii; ++i) {
+    let ext = this.extensions[i];
     if (relativePath.slice(-ext.length - 1) === '.' + ext) {
       if (this.targetExtension != null) {
         relativePath = relativePath.slice(0, -ext.length) + this.targetExtension;
@@ -294,18 +292,18 @@ Filter.prototype.getDestFilePath = function(relativePath, entry) {
 };
 
 Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, isChange, instrumentation) {
-  var filter = this;
-  var relativePath = entry.relativePath;
+  let filter = this;
+  let relativePath = entry.relativePath;
 
   return Promise.resolve().
-      then(function asyncProcessFile() {
-        return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation, entry);
-      }).
-      then(undefined,
+    then(() => {
+      return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation, entry);
+    }).
+    then(undefined,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
       // useful.
       // istanbul ignore next
-      function asyncProcessFileErrorWrapper(e) {
+      e => {
         if (typeof e !== 'object') e = new Error('' + e);
         e.file = relativePath;
         e.treeDir = srcDir;
@@ -314,30 +312,30 @@ Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, isChange
 };
 
 function invoke(context, fn, args) {
-  return new Promise(function(resolve) {
+  return new Promise(resolve => {
     resolve(fn.apply(context, args));
   });
 }
 
 Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange, instrumentation, entry) {
-  var filter = this;
-  var inputEncoding = this.inputEncoding;
-  var outputEncoding = this.outputEncoding;
+  let filter = this;
+  let inputEncoding = this.inputEncoding;
+  let outputEncoding = this.outputEncoding;
 
   if (inputEncoding === undefined)  inputEncoding  = 'utf8';
   if (outputEncoding === undefined) outputEncoding = 'utf8';
 
-  var contents = fs.readFileSync(srcDir + '/' + relativePath, {
+  let contents = fs.readFileSync(srcDir + '/' + relativePath, {
     encoding: inputEncoding
   });
 
   instrumentation.processString++;
-  var processStringStart = process.hrtime();
-  var string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, instrumentation]);
+  let processStringStart = process.hrtime();
+  let string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, instrumentation]);
 
-  return string.then(function asyncOutputFilteredFile(outputString) {
+  return string.then(outputString => {
     instrumentation.processStringTime += nanosecondsSince(processStringStart);
-    var outputPath = filter.getDestFilePath(relativePath, entry);
+    let outputPath = filter.getDestFilePath(relativePath, entry);
 
     if (outputPath == null) {
       throw new Error('canProcessFile("' + relativePath +
@@ -348,7 +346,7 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     outputPath = destDir + '/' + outputPath;
 
     if (isChange) {
-      var isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
+      let isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
       if (isSame) {
 
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
@@ -372,7 +370,7 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     }
 
     return outputString;
-  }.bind(this));
+  });
 };
 
 Filter.prototype.processString = function(/* contents, relativePath */) {
