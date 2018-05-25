@@ -1,18 +1,4 @@
 'use strict';
-
-require('babel-register')({
-  presets: [ 'es2015' ],
-  ignore: function(filename) {
-    return [
-      // whitelist - must transpile these to run the tests with node 0.12
-      'node_modules/broccoli-test-helper/',
-      'test/helpers/'
-    ].every(function(needsCompile) {
-      return filename.indexOf(needsCompile) < 0;
-    });
-  }
-});
-
 const chai = require('chai');
 const expect = chai.expect;
 const chaiAsPromised = require('chai-as-promised');
