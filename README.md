@@ -175,6 +175,12 @@ On RedHad-like systems, you can use [tmpwatch](https://fedorahosted.org/tmpwatch
 By default, the files are stored in the [operatin system's default directory for temporary files](https://nodejs.org/api/os.html#os_os_tmpdir),
 but you can change this location by setting the `BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT` environment variable to the path of another folder.
 
+To clear the persistent cache on any particular build, set the `CLEAR_BROCCOLI_PERSISTENT_FILTER_CACHE` environment variable to `true` like so:
+
+```sh
+CLEAR_BROCCOLI_PERSISTENT_FILTER_CACHE=true ember serve
+```
+
 ## FAQ
 
 ### Upgrading from 0.1.x to 1.x
