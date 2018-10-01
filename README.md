@@ -125,6 +125,9 @@ module.exports = node;
 
 Adding persist flag allows a subclass to persist state across restarts. This exists to mitigate the upfront cost of some more expensive transforms on warm boot. __It does not aim to improve incremental build performance, if it does, it should indicate something is wrong with the filter or input filter in question.__
 
+By default, if the the `CI=true` environment variable is set, peristent caches are disabled.
+To force persistent caches on CI, please set the `FORCE_PERSISTENCE_IN_CI=true` environment variable;
+
 ### How does it work?
 
 It does so but establishing a 2 layer file cache. The first layer, is the entire bucket.
@@ -167,12 +170,12 @@ By using the persistent cache, a lot of small files will be created on the disk 
 This might use all the inodes of your disk.
 You need to make sure to clean regularly the old files or configure your system to do so.
 
-On OSX, [files that aren't accessed in three days are deleted from `/tmp`](http://superuser.com/a/187105).  
-On systems using systemd, [systemd-tmpfiles](https://www.freedesktop.org/software/systemd/man/systemd-tmpfiles.html) should already be present and regularly clean up the `/tmp` directory.  
-On Debian-like systems, you can use [tmpreaper](https://packages.debian.org/stable/tmpreaper).  
-On RedHad-like systems, you can use [tmpwatch](https://fedorahosted.org/tmpwatch/).
+On OSX, [files that aren't accessed in three days are deleted from `/tmp`](http://superuser.com/a/187105).
+On systems using systemd, [systemd-tmpfiles](https://www.freedesktop.org/software/systemd/man/systemd-tmpfiles.html) should already be present and regularly clean up the `/tmp` directory.
+On Debian-like systems, you can use [tmpreaper](https://packages.debian.org/stable/tmpreaper).
+On RedHat-like systems, you can use [tmpwatch](https://fedorahosted.org/tmpwatch/).
 
-By default, the files are stored in the [operatin system's default directory for temporary files](https://nodejs.org/api/os.html#os_os_tmpdir),
+By default, the files are stored in the [operating system's default directory for temporary files](https://nodejs.org/api/os.html#os_os_tmpdir),
 but you can change this location by setting the `BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT` environment variable to the path of another folder.
 
 ## FAQ
