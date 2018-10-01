@@ -783,7 +783,10 @@ describe('Filter', function() {
     expect(selfTime).to.be.above(50, 'reported time should include the 50ms timeout in Rot13AsyncFilter');
   }));
 
-  describe('persistent cache', function() {
+  describe('persistent cache (delete process.env.CI)', function() {
+    const hasCIValue = ('CI' in process.env);
+    const CI_VALUE = process.env.CI;
+
     function F(inputTree, options) {
       Filter.call(this, inputTree, options);
     }
@@ -795,10 +798,17 @@ describe('Filter', function() {
     };
 
     beforeEach(function() {
+      delete process.env.CI;
       this.originalCacheRoot = process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
     });
 
     afterEach(function() {
+      if (hasCIValue) {
+        process.env.CI = CI_VALUE;
+      } else{
+        delete process.env.CI;
+      }
+
       if (this.originalCacheRoot) {
         process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = this.originalCacheRoot;
       } else {
@@ -920,6 +930,80 @@ describe('Filter', function() {
       // do nothing, just kicked off to warm the persistent cache
       let results = yield builder('dir', { persist: true });
       expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+    }));
+  });
+
+  describe('persistent cache (process.env.CI=true)', function() {
+    const hasCIValue = ('CI' in process.env);
+    const CI_VALUE = process.env.CI;
+
+    function F(inputTree, options) {
+      Filter.call(this, inputTree, options);
+    }
+
+    inherits(F, Filter);
+
+    F.prototype.baseDir = function() {
+      return path.join(__dirname, '../');
+    };
+
+    beforeEach(function() {
+      process.env.CI = true;
+      this.originalCacheRoot = process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
+    });
+
+    afterEach(function() {
+      if (hasCIValue) {
+        process.env.CI = CI_VALUE;
+      } else{
+        delete process.env.CI;
+      }
+
+      if (this.originalCacheRoot) {
+        process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = this.originalCacheRoot;
+      } else {
+        delete process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
+      }
+    });
+
+    it('initializes cache', function() {
+      let f = new F(fixturePath('a'), {
+        persist: true
+      });
+
+      // TODO: we should just deal in observable differences, not reaching into private state
+      expect(f.processor.processor._cache).to.eql(undefined);
+    });
+
+    it('calls postProcess for persistent cache hits (work is not needed)', co.wrap(function* () {
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
+        'process-cache-string-tests');
+      rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
+
+      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
+        awk.postProcess = function(result) {
+          expect(result.output).to.exist;
+          return result;
+        };
+
+        sinon.spy(awk, 'processString');
+        sinon.spy(awk, 'postProcess');
+
+        return awk;
+      });
+
+      let results = yield builder('dir', { persist: true });
+      let awk = results.subject;
+
+      // first time, build everything
+      expect(awk.processString.callCount).to.equal(3);
+      expect(awk.postProcess.callCount).to.equal(3);
+
+      results = yield  builder('dir', { persist: true });
+      awk = results.subject;
+      // second instance, hits cache
+      expect(awk.processString.callCount).to.equal(3);
+      expect(awk.postProcess.callCount).to.equal(3);
     }));
   });
 

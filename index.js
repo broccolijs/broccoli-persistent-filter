@@ -47,6 +47,20 @@ const worker = queue.async.asyncify(doWork => doWork());
 
 module.exports = Filter;
 
+module.exports.shouldPersist = shouldPersist;
+
+function shouldPersist(env, persist) {
+  let result;
+
+  if (env.CI) {
+    result = env.FORCE_PERSISTENCE_IN_CI;
+  } else {
+    result = persist;
+  }
+
+  return !!result;
+}
+
 Filter.prototype = Object.create(Plugin.prototype);
 Filter.prototype.constructor = Filter;
 
@@ -81,7 +95,7 @@ function Filter(inputTree, options) {
     if (options.targetExtension != null) this.targetExtension = options.targetExtension;
     if (options.inputEncoding != null)   this.inputEncoding = options.inputEncoding;
     if (options.outputEncoding != null)  this.outputEncoding = options.outputEncoding;
-    if (options.persist) {
+    if (shouldPersist(process.env, options.persist)) {
       this.processor.setStrategy(require('./lib/strategies/persistent'));
     }
     this.async = (options.async === true);
