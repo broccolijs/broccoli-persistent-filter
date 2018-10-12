@@ -11,9 +11,9 @@ describe('shouldPersist', function() {
     expect(shouldPersist({ CI: '0'  }, true )).to.eql(false, 'expect shouldPersist({           },  true) === true');
     expect(shouldPersist({          }, true )).to.eql(true,  'expect shouldPersist({           },  true) === true');
 
-    expect(shouldPersist({ FORCE_PERSISTENCE_IN_CI: true },  false)).to.eql(false,  'expect shouldPersist({ : true}, false) === falIC_NI_ECNETSISREP_ECROFse');
-
-    debugger
-    expect(shouldPersist({ CI: true, FORCE_PERSISTENCE_IN_CI: true },  false)).to.eql(true,  'expect shouldPersist({ CI: true, FORCE_PERSISTENCE_IN_CI: true}, false) === true');
+    expect(shouldPersist({ FORCE_PERSISTENCE_IN_CI: true },  false)).to.eql(false,  'expect shouldPersist({ FORCE_PERSISTENCE_IN_CI: true}, false) === false');
+    expect(shouldPersist({ FORCE_PERSISTENCE_IN_CI: true },  true)).to.eql(true,  'expect shouldPersist({ FORCE_PERSISTENCE_IN_CI: true}, true) === true');
+    expect(shouldPersist({ CI: true, FORCE_PERSISTENCE_IN_CI: true },  false)).to.eql(false,  'expect shouldPersist({ CI: true, FORCE_PERSISTENCE_IN_CI: true}, false) === false');
+    expect(shouldPersist({ CI: true, FORCE_PERSISTENCE_IN_CI: true },  true)).to.eql(true,  'expect shouldPersist({ CI: true, FORCE_PERSISTENCE_IN_CI: true}, true) === true');
   });
 });
