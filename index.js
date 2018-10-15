@@ -49,7 +49,7 @@ function shouldPersist(env, persist) {
   var result;
 
   if (env.CI) {
-    result = env.FORCE_PERSISTENCE_IN_CI;
+    result = persist && env.FORCE_PERSISTENCE_IN_CI;
   } else {
     result = persist;
   }
