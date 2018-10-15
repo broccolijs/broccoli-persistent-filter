@@ -46,7 +46,7 @@ module.exports = Filter;
 module.exports.shouldPersist = shouldPersist;
 
 function shouldPersist(env, persist) {
-  let result;
+  var result;
 
   if (env.CI) {
     result = env.FORCE_PERSISTENCE_IN_CI;
