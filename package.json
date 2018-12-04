@@ -44,7 +44,7 @@
     "rimraf": "^2.6.1",
     "rsvp": "^4.7.0",
     "symlink-or-copy": "^1.0.1",
-    "walk-sync": "^0.3.1"
+    "walk-sync": "^1.0.0"
   },
   "devDependencies": {
     "broccoli-test-helper": "^1.1.0",
