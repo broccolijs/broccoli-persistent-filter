@@ -217,18 +217,24 @@ Filter.prototype.build = function() {
   });
 };
 
-Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, instrumentation) {
+Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, stats) {
+  let instrumentation = heimdall.start('_handleFile');
+  let result;
+
   if (this.canProcessFile(relativePath, entry)) {
-    instrumentation.processed++;
-    return this.processAndCacheFile(srcDir, destDir, entry, isChange, instrumentation);
+    stats.processed++;
+    result = this.processAndCacheFile(srcDir, destDir, entry, isChange, stats);
   } else {
-    instrumentation.linked++;
+    stats.linked++;
     if (isChange) {
       fs.unlinkSync(outputPath);
     }
     let srcPath = srcDir + '/' + relativePath;
-    return symlinkOrCopySync(srcPath, outputPath);
+    result = symlinkOrCopySync(srcPath, outputPath);
   }
+
+  instrumentation.stop();
+  return result;
 };
 
 /*
