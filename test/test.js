@@ -1067,6 +1067,42 @@ describe('Filter', function() {
       expect(fs.writeFileSync.calledWith(path.join(cwd, 'a', 'foo.js'),
         'Nicest dogs in need of homes')).to.eql(false);
     }));
+
+    it('does not accidentally write to symlinks it created', co.wrap(function* () {
+      class Coffee extends Filter {
+        processString(content) {
+          return content;
+        }
+      }
+      Coffee.prototype.extensions = ['coffee'];
+      Coffee.prototype.targetExtension = 'js';
+      subject = new Coffee(input.path(), { async:true });
+
+      const ORIGINAL_FOO_JS = 'console.log(\'Hello, World!\')';
+
+      input.write({
+        'foo.js': ORIGINAL_FOO_JS
+      });
+
+      output = createBuilder(subject);
+
+      yield output.build();
+
+      expect(output.read()).to.eql({
+        'foo.js': ORIGINAL_FOO_JS
+      });
+
+      input.write({
+        'foo.coffee': '\'coffee source\''
+      });
+
+      yield output.build();
+
+      expect(output.read()).to.eql({
+        'foo.js': '\'coffee source\''
+      });
+      expect(input.read()['foo.js']).to.eql(ORIGINAL_FOO_JS);
+    }));
   });
 
   describe('concurrency', function() {
@@ -1192,4 +1228,6 @@ describe('throttling', function() {
     expect(millisecondsSince(startTime)).to.be.above(100, '1 group of all 4 files, taking 100ms each, should take at least 100ms');
     expect(millisecondsSince(startTime)).to.be.below(200, 'all 4 jobs running concurrently in 1 group should finish in about 100ms');
   }));
+
 });
+

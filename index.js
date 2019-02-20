@@ -108,6 +108,7 @@ function Filter(inputTree, options) {
   this._needsReset = false;
 
   this.concurrency = (options && options.concurrency) || Number(process.env.JOBS) || Math.max(require('os').cpus().length - 1, 1);
+  this._outputLinks = Object.create(null);
 }
 
 function nanosecondsSince(time) {
@@ -221,17 +222,22 @@ Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, ou
   let instrumentation = heimdall.start('_handleFile');
   let work = new Promise(resolve => {
     let result;
+    let srcPath = srcDir + '/' + relativePath;
 
     if (this.canProcessFile(relativePath, entry)) {
       stats.processed++;
+      if (this._outputLinks[outputPath] === true) {
+        delete this._outputLinks[outputPath];
+        fs.unlinkSync(outputPath);
+      }
       result = this.processAndCacheFile(srcDir, destDir, entry, isChange, stats);
     } else {
       stats.linked++;
       if (isChange) {
         fs.unlinkSync(outputPath);
       }
-      let srcPath = srcDir + '/' + relativePath;
       result = symlinkOrCopySync(srcPath, outputPath);
+      this._outputLinks[outputPath] = true;
     }
 
     resolve(result);
