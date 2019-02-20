@@ -219,22 +219,31 @@ Filter.prototype.build = function() {
 
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, stats) {
   let instrumentation = heimdall.start('_handleFile');
-  let result;
+  let work = new Promise(resolve => {
+    let result;
 
-  if (this.canProcessFile(relativePath, entry)) {
-    stats.processed++;
-    result = this.processAndCacheFile(srcDir, destDir, entry, isChange, stats);
-  } else {
-    stats.linked++;
-    if (isChange) {
-      fs.unlinkSync(outputPath);
+    if (this.canProcessFile(relativePath, entry)) {
+      stats.processed++;
+      result = this.processAndCacheFile(srcDir, destDir, entry, isChange, stats);
+    } else {
+      stats.linked++;
+      if (isChange) {
+        fs.unlinkSync(outputPath);
+      }
+      let srcPath = srcDir + '/' + relativePath;
+      result = symlinkOrCopySync(srcPath, outputPath);
     }
-    let srcPath = srcDir + '/' + relativePath;
-    result = symlinkOrCopySync(srcPath, outputPath);
-  }
 
-  instrumentation.stop();
-  return result;
+    resolve(result);
+  }).then(value => {
+    instrumentation.stop();
+    return value;
+  }, e => {
+    instrumentation.stop();
+    throw e;
+  });
+
+  return work;
 };
 
 /*
