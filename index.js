@@ -28,11 +28,13 @@ class ApplyPatchesSchema {
     this.other = 0;
     this.processed = 0;
     this.linked = 0;
+    this.handleFile = 0;
 
     this.processString = 0;
     this.processStringTime = 0;
     this.persistentCacheHit = 0;
     this.persistentCachePrime = 0;
+    this.handleFileTime = 0;
   }
 }
 
@@ -219,8 +221,11 @@ Filter.prototype.build = function() {
 };
 
 Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, stats) {
-  let instrumentation = heimdall.start('_handleFile');
-  let work = new Promise(resolve => {
+  stats.handleFile++;
+
+  let handleFileStart = process.hrtime();
+
+  return new Promise(resolve => {
     let result;
     let srcPath = srcDir + '/' + relativePath;
 
@@ -239,17 +244,14 @@ Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, ou
       result = symlinkOrCopySync(srcPath, outputPath);
       this._outputLinks[outputPath] = true;
     }
-
     resolve(result);
-  }).then(value => {
-    instrumentation.stop();
-    return value;
-  }, e => {
-    instrumentation.stop();
-    throw e;
+  }).then(val => {
+    stats.handleFileTime += nanosecondsSince(handleFileStart);
+    return val;
+  }, err => {
+    stats.handleFileTime += nanosecondsSince(handleFileStart);
+    throw err;
   });
-
-  return work;
 };
 
 /*

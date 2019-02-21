@@ -778,7 +778,7 @@ describe('Filter', function() {
 
     yield output.build();
 
-    var applyPatchesNode = heimdall.toJSON().nodes.filter(elem => elem.id.name === '_handleFile')[0];
+    var applyPatchesNode = heimdall.toJSON().nodes.filter(elem => elem.id.name === 'applyPatches')[0];
     var selfTime = applyPatchesNode.stats.time.self / (1000 * 1000); // convert to ms
     expect(selfTime).to.be.above(0, 'reported time should include the 50ms timeout in Rot13AsyncFilter');
   }));
