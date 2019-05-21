@@ -85,6 +85,11 @@ class Filter {
 * `concurrency`: Used with `async: true`. The number of operations that can be
   run concurrently. This overrides the value set with `JOBS=n` environment variable.
   (default: the number of detected CPU cores - 1, with a min of 1)
+* `dependencyInvalidation`: Setting this option to `true` will cause addon
+  to have an instance property `dependencies` that can be used to register
+  dependencies for a file. `this.dependencies.setDependencies()` should be
+  called during `processString`. If any of the dependencies change, it will
+  cause the file to be processed again during the next build.
 
 All options except `name` and `annotation` can also be set on the prototype
 instead of being passed into the constructor.

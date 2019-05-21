@@ -36,6 +36,7 @@ const IncompleteFilter = require('./helpers/incomplete');
 const MyFilter = require('./helpers/simple');
 const Rot13Filter = require('./helpers/rot13');
 const Rot13AsyncFilter = require('./helpers/rot13-async');
+const Inliner = require('./helpers/inliner');
 
 const rootFixturePath = path.join(__dirname, 'fixtures');
 
@@ -1139,6 +1140,96 @@ describe('Filter', function() {
         expect(filter.concurrency).to.equal(1);
       });
     });
+  });
+
+  describe('with dependency tracking', function() {
+    let input, subject, output;
+
+    afterEach(co.wrap(function* () {
+      yield input.dispose();
+      yield output.dispose();
+    }));
+
+    it('calls processString if work is needed', co.wrap(function* () {
+      input = yield createTempDir();
+      input.write({
+        'dep-tracking': {
+          'has-inlines.js': '// << ./local.js\n' +
+                            '// << ../external-deps/external.js\n',
+          'local.js': 'console.log("local");\n',
+          'unrelated-file.js': 'console.log("pay me no mind.")\n'
+        },
+        'external-deps': {
+          'external.js': 'console.log("external");\n'
+        }
+      });
+
+      subject = new Inliner(path.join(input.path(), 'dep-tracking'));
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
+
+      let results = yield output.build();
+      // first time, build everything
+      expect(subject.processString.callCount).to.equal(3);
+
+      expect(output.readText('has-inlines.js')).to.equal(
+        'console.log("local");\n'+
+        'console.log("external");\n'
+      );
+
+      subject.processString.callCount = 0;
+
+      results = yield output.build();
+
+      // rebuild, but no changes (build nothing);
+      expect(subject.processString.callCount).to.equal(0);
+
+      input.write({
+        'dep-tracking': {
+          'local.js': 'console.log("local changed");\n'
+        }
+      });
+
+      results = yield output.build();
+      // rebuild 1 file
+      expect(subject.processString.callCount).to.equal(2);
+
+      expect(output.readText('has-inlines.js')).to.equal(
+        'console.log("local changed");\n'+
+        'console.log("external");\n'
+      );
+
+      subject.processString.callCount = 0;
+
+      input.write({
+        'dep-tracking': {
+          'local.js': null,
+          'has-inlines.js': '// << ../external-deps/external.js\n',
+        }
+      });
+
+
+      results = yield output.build();
+      // rebuild 1 files, make sure no error occurs from file deletion
+      expect(subject.processString.callCount).to.equal(1);
+      expect(output.readText('has-inlines.js')).to.equal(
+        'console.log("external");\n'
+      );
+      subject.processString.callCount = 0;
+
+      input.write({
+        'external-deps': {
+          'external.js': 'console.log("external changed");\n'
+        }
+      });
+
+      results = yield output.build();
+      // rebuild 1 files, make sure changes outside the tree invalidate files.
+      expect(subject.processString.callCount).to.equal(1);
+      expect(output.readText('has-inlines.js')).to.equal(
+        'console.log("external changed");\n'
+      );
+    }));
   });
 });
 

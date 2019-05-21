@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 
 const fs = require('fs');
@@ -12,6 +13,8 @@ const symlinkOrCopySync = require('symlink-or-copy').sync;
 const debugGenerator = require('heimdalljs-logger');
 const md5Hex = require('./lib/md5-hex');
 const Processor = require('./lib/processor');
+const Dependencies = require('./lib/dependencies'); // jshint ignore:line
+const addPatches = require('./lib/addPatches');
 const hashForDep = require('hash-for-dep');
 const FSTree = require('fs-tree-diff');
 const heimdall = require('heimdalljs');
@@ -78,6 +81,7 @@ function Filter(inputTree, options) {
     loggerName += ' > [' + annotation + ']';
   }
 
+  /** @type {{debug(...s: any[]): void; info(...s: any[]): void}} */
   this._logger = debugGenerator(loggerName);
 
   Plugin.call(this, [inputTree], {
@@ -86,7 +90,11 @@ function Filter(inputTree, options) {
     persistentOutput: true
   });
 
+  /** @type {Processor} */
   this.processor = new Processor(options);
+  /** @type {Dependencies | null} */
+  this.dependencies = null;
+
   this.currentTree = new FSTree();
 
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
@@ -103,6 +111,9 @@ function Filter(inputTree, options) {
 
   this.processor.init(this);
 
+  // TODO: don't enable this by default. it's just for testing.
+  /** @type {boolean} */
+  this.dependencyInvalidation = options && options.dependencyInvalidation || false;
   this._canProcessCache = Object.create(null);
   this._destFilePathCache = Object.create(null);
   this._needsReset = false;
@@ -121,43 +132,84 @@ function timeSince(time) {
   return (deltaNS / 1e6).toFixed(2) +' ms';
 }
 
+Filter.prototype._calculateInvalidationPatches = function() {
+  if (this.dependencies === null) {
+    return [];
+  }
+  let invalidated = this.dependencies.getInvalidatedFiles();
+  this._logger.info('found', invalidated.length, 'files invalidated due to dependency changes.');
+  /** @type {Array<FSTree.Operation>} */
+  let patches = [];
+  for (let entry of this.currentTree.entries) {
+    if (invalidated.includes(entry.relativePath)) {
+      patches.push(['change', entry.relativePath, entry]);
+    }
+  }
+  return patches;
+};
+
 Filter.prototype.build = function() {
+  // @ts-ignore
+  let srcDir = this.inputPaths[0];
+  // @ts-ignore
+  let destDir = this.outputPath;
+
+  if (this.dependencyInvalidation && !this.dependencies) {
+    this.dependencies = this.processor.initialDependencies(srcDir);
+  }
+
   if (this._needsReset) {
     this.currentTree = new FSTree();
+    // @ts-ignore
     let instrumentation = heimdall.start('reset');
+    if (this.dependencies) {
+      this.dependencies = this.processor.initialDependencies(srcDir);
+    }
+    // @ts-ignore
     rimraf.sync(this.outputPath);
+    // @ts-ignore
     mkdirp.sync(this.outputPath);
     instrumentation.stop();
   }
 
-
-  let srcDir = this.inputPaths[0];
-  let destDir = this.outputPath;
-
   let prevTime = process.hrtime();
+  // @ts-ignore
   let instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
   let walkStart = process.hrtime();
   let entries = walkSync.entries(srcDir);
   let walkDuration = timeSince(walkStart);
 
+  let invalidationsStart = process.hrtime();
+  let invalidationPatches = this._calculateInvalidationPatches();
+  let invalidationsDuration = timeSince(invalidationsStart);
+
   let nextTree = FSTree.fromEntries(entries);
-  let currentTree = this.currentTree;
-
-  this.currentTree = nextTree;
-
-  let patches = currentTree.calculatePatch(nextTree);
+  let patches = this.currentTree.calculatePatch(nextTree);
+  patches = addPatches(invalidationPatches, patches);
 
   instrumentation.stats.patches = patches.length;
   instrumentation.stats.entries = entries.length;
+  instrumentation.stats.invalidations = {
+    dependencies: this.dependencies ? this.dependencies.countUnique() : 0,
+    count: invalidationPatches.length,
+    duration: invalidationsDuration
+  };
   instrumentation.stats.walk = {
     entries: entries.length,
     duration: walkDuration
   };
 
+  this.currentTree = nextTree;
+
   this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
 
   instrumentation.stop();
+
+  if (this.dependencies && patches.length > 0) {
+    let files = patches.map(p => p[1]);
+    this.dependencies = this.dependencies.copyWithout(files);
+  }
 
   if (patches.length === 0) {
     // no work, exit early
@@ -169,6 +221,7 @@ Filter.prototype.build = function() {
 
   // used with options.async = true to allow 'create' and 'change' operations to complete async
   const pendingWork = [];
+  // @ts-ignore
   return heimdall.node('applyPatches', ApplyPatchesSchema, instrumentation => {
     let prevTime = process.hrtime();
     return mapSeries(patches, patch => {
@@ -220,6 +273,9 @@ Filter.prototype.build = function() {
       return queue(worker, pendingWork, this.concurrency);
     }).then((result) => {
       this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+      if (this.dependencies) {
+        this.processor.sealDependencies(this.dependencies);
+      }
       this._needsReset = false;
       return result;
     });
@@ -301,10 +357,12 @@ Filter.prototype.canProcessFile =
 };
 
 Filter.prototype.isDirectory = function(relativePath, entry) {
+  // @ts-ignore
   if (this.inputPaths === undefined) {
     return false;
   }
 
+  // @ts-ignore
   let srcDir = this.inputPaths[0];
   let path = srcDir + '/' + relativePath;
 
@@ -391,7 +449,6 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     if (isChange) {
       let isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
       if (isSame) {
-
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
         return;
       } else {
@@ -416,7 +473,12 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
   });
 };
 
-Filter.prototype.processString = function(/* contents, relativePath */) {
+/**
+ * @param contents {string}
+ * @param relativePath {string}
+ * @returns {string}
+ */
+Filter.prototype.processString = function(contents, relativePath) { // jshint ignore:line
   throw new Error(
       'When subclassing broccoli-persistent-filter you must implement the ' +
       '`processString()` method.');
