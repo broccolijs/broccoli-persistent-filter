@@ -224,7 +224,7 @@ describe('Dependency Invalidation', function() {
         pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile1.txt'),
         pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
       ],
-      'subdir/subdirFile1.txt': [
+      [pathFor('subdir/subdirFile1.txt')]: [
         pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
         pathFor(EXT_DEP_FIXTURE_DIR, 'dep-1.txt'),
       ]
