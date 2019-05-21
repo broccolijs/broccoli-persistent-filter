@@ -12,7 +12,6 @@ const symlinkOrCopySync = require('symlink-or-copy').sync;
 const debugGenerator = require('heimdalljs-logger');
 const md5Hex = require('./lib/md5-hex');
 const Processor = require('./lib/processor');
-const defaultProccessor = require('./lib/strategies/default');
 const hashForDep = require('hash-for-dep');
 const FSTree = require('fs-tree-diff');
 const heimdall = require('heimdalljs');
@@ -88,7 +87,6 @@ function Filter(inputTree, options) {
   });
 
   this.processor = new Processor(options);
-  this.processor.setStrategy(defaultProccessor);
   this.currentTree = new FSTree();
 
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
