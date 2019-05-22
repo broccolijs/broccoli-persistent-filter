@@ -1231,6 +1231,21 @@ describe('Filter', function() {
       );
     }));
     describe('and with cache persistence', function () {
+      const hasCIValue = ('CI' in process.env);
+      const CI_VALUE = process.env.CI;
+
+      beforeEach(function() {
+        delete process.env.CI;
+      });
+
+      afterEach(function() {
+        if (hasCIValue) {
+          process.env.CI = CI_VALUE;
+        } else{
+          delete process.env.CI;
+        }
+      });
+
       it('calls processString if work is needed', co.wrap(function* () {
         input = yield createTempDir();
         input.write({
