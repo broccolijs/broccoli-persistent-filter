@@ -1230,6 +1230,119 @@ describe('Filter', function() {
         'console.log("external changed");\n'
       );
     }));
+    describe('and with cache persistence', function () {
+      it('calls processString if work is needed', co.wrap(function* () {
+        input = yield createTempDir();
+        input.write({
+          'dep-tracking-1': {
+            'has-inlines.js': '// << ./local.js\n' +
+              '// << ../external-deps/external.js\n',
+            'local.js': 'console.log("local");\n',
+            'unrelated-file.js': 'console.log("pay me no mind.")\n'
+          },
+          'dep-tracking-2': {
+            'has-inlines.js': '// << ./local.js\n' +
+              '// << ../external-deps/external.js\n',
+            'local.js': 'console.log("local changed");\n',
+            'unrelated-file.js': 'console.log("pay me no mind.")\n'
+          },
+          'dep-tracking-3': {
+            'has-inlines.js': '// << ../external-deps/external.js\n',
+            'local.js': null,
+            'unrelated-file.js': 'console.log("pay me no mind.")\n'
+          },
+          'external-deps': {
+            'external.js': 'console.log("external");\n'
+          }
+        });
+
+        subject = new Inliner(path.join(input.path(), 'dep-tracking-1'), {
+          persist: true
+        });
+        rimraf(subject.processor.processor._cache.root);
+        rimraf(subject.processor.processor._syncCache.root);
+        sinon.spy(subject, 'processString');
+        output = createBuilder(subject);
+
+        let results = yield output.build();
+        // first time, build everything
+        expect(output.readText('has-inlines.js')).to.equal(
+          'console.log("local");\n' +
+          'console.log("external");\n'
+        );
+        expect(subject.processString.callCount).to.equal(3);
+
+
+        subject.processString.callCount = 0;
+        yield output.dispose();
+
+        subject = new Inliner(path.join(input.path(), 'dep-tracking-1'), {
+          persist: true
+        });
+        sinon.spy(subject, 'processString');
+        output = createBuilder(subject);
+
+        results = yield output.build();
+
+        // rebuild, but no changes (build nothing);
+        expect(subject.processString.callCount).to.equal(0);
+
+        yield output.dispose();
+
+        subject = new Inliner(path.join(input.path(), 'dep-tracking-2'), {
+          persist: true
+        });
+        sinon.spy(subject, 'processString');
+        output = createBuilder(subject);
+
+        results = yield output.build();
+        // rebuild 1 file due to invalidations, one due to changes.
+        expect(subject.processString.callCount).to.equal(2);
+
+        expect(output.readText('has-inlines.js')).to.equal(
+          'console.log("local changed");\n' +
+          'console.log("external");\n'
+        );
+
+        subject.processString.callCount = 0;
+        yield output.dispose();
+
+        subject = new Inliner(path.join(input.path(), 'dep-tracking-3'), {
+          persist: true
+        });
+        sinon.spy(subject, 'processString');
+        output = createBuilder(subject);
+
+        results = yield output.build();
+        // rebuild 1 files, make sure no error occurs from file deletion
+        expect(subject.processString.callCount).to.equal(1);
+        expect(output.readText('has-inlines.js')).to.equal(
+          'console.log("external");\n'
+        );
+        subject.processString.callCount = 0;
+        yield output.dispose();
+
+        subject = new Inliner(path.join(input.path(), 'dep-tracking-3'), {
+          persist: true
+        });
+        sinon.spy(subject, 'processString');
+        output = createBuilder(subject);
+
+        input.write({
+          'external-deps': {
+            'external.js': 'console.log("external changed");\n'
+          }
+        });
+
+        results = yield output.build();
+        // rebuild 1 files, make sure changes outside the tree invalidate files.
+        expect(subject.processString.callCount).to.equal(1);
+        expect(output.readText('has-inlines.js')).to.equal(
+          'console.log("external changed");\n'
+        );
+      }));
+
+    });
   });
 });
 

@@ -13,6 +13,9 @@ class Inliner extends Filter {
     options.dependencyInvalidation = true;
     super(inputTree, options);
   }
+  cacheKey() {
+    return "inliner";
+  }
 
   /**
    * @param contents {string}
@@ -40,8 +43,5 @@ class Inliner extends Filter {
     return lines.join("\n");
   }
 }
-
-
-
 
 module.exports = Inliner;
