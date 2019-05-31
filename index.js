@@ -133,18 +133,18 @@ function timeSince(time) {
 }
 
 /**
- * @param invalidated {Array<string>}
+ * @param invalidated {Array<string>} The files that have been invalidated.
+ * @param currentTree {FSTree} the current tree - for entry lookup.
  * @param nextTree {FSTree} The next tree - for entry lookup.
  */
-Filter.prototype._calculateInvalidationPatches = function(invalidated, nextTree) {
+function invalidationsAsPatches(invalidated, currentTree, nextTree) {
   if (invalidated.length === 0) {
     return [];
   }
-  this._logger.info('found', invalidated.length, 'files invalidated due to dependency changes.');
   /** @type {Array<FSTree.Operation>} */
   let patches = [];
   let currentEntries = {};
-  for (let entry of this.currentTree.entries) {
+  for (let entry of currentTree.entries) {
     currentEntries[entry.relativePath] = entry;
   }
   let nextEntries = {};
@@ -159,7 +159,7 @@ Filter.prototype._calculateInvalidationPatches = function(invalidated, nextTree)
     }
   }
   return patches;
-};
+}
 
 Filter.prototype.build = function() {
   // @ts-ignore
@@ -196,7 +196,8 @@ Filter.prototype.build = function() {
 
   let invalidationsStart = process.hrtime();
   let invalidated = this.dependencies && this.dependencies.getInvalidatedFiles() || [];
-  let invalidationPatches = this._calculateInvalidationPatches(invalidated, nextTree);
+  this._logger.info('found', invalidated.length, 'files invalidated due to dependency changes.');
+  let invalidationPatches = invalidationsAsPatches(invalidated, this.currentTree, nextTree);
   let invalidationsDuration = timeSince(invalidationsStart);
 
   let patches = this.currentTree.calculatePatch(nextTree);
