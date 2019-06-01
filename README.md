@@ -199,6 +199,12 @@ CLEAR_BROCCOLI_PERSISTENT_FILTER_CACHE=true ember serve
 
 ## Dependency Invalidation
 
+When the output of `processString()` can depend on files other than the
+primary input file, the broccoli plugin should use the
+`dependencyInvalidation` option and these related APIs to cause the output
+cache to become automatically invalidated should those other input files
+change.
+
 Plugins that enable the `dependencyInvalidation` option will have an instance
 property `dependencies` that can be used to register dependencies for a file.
 
@@ -216,10 +222,11 @@ dependency information about the file.
 
 The dependencies passed to `setDependencies()` can be absolute paths or
 relative. If relative, the path will be assumed relative to the file being
-processed. The dependencies can be within the broccoli tree or outside it.
-Files inside the broccoli tree are tracked for changes using a checksum
-because files in broccoli trees do not have stable timestamps. Files outside
-the tree are tracked using modification time.
+processed. The dependencies can be within the broccoli tree or outside it
+(note: adding dependencies outside the tree does not cause those files to be
+watched). Files inside the broccoli tree are tracked for changes using a
+checksum because files in broccoli trees do not have stable timestamps. Files
+outside the tree are tracked using modification time.
 
 ## FAQ
 
