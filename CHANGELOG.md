@@ -1,5 +1,9 @@
 # master
 
+# 2.3.0
+
+* add optional enchanced dependency tracking
+
 # 2.2.3
 
 * skip applyPatches phase, if no patches exist
