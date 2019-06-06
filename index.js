@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 
 const fs = require('fs');
@@ -12,7 +13,8 @@ const symlinkOrCopySync = require('symlink-or-copy').sync;
 const debugGenerator = require('heimdalljs-logger');
 const md5Hex = require('./lib/md5-hex');
 const Processor = require('./lib/processor');
-const defaultProccessor = require('./lib/strategies/default');
+const Dependencies = require('./lib/dependencies'); // jshint ignore:line
+const addPatches = require('./lib/addPatches');
 const hashForDep = require('hash-for-dep');
 const FSTree = require('fs-tree-diff');
 const heimdall = require('heimdalljs');
@@ -79,6 +81,7 @@ function Filter(inputTree, options) {
     loggerName += ' > [' + annotation + ']';
   }
 
+  /** @type {{debug(...s: any[]): void; info(...s: any[]): void}} */
   this._logger = debugGenerator(loggerName);
 
   Plugin.call(this, [inputTree], {
@@ -87,8 +90,11 @@ function Filter(inputTree, options) {
     persistentOutput: true
   });
 
+  /** @type {Processor} */
   this.processor = new Processor(options);
-  this.processor.setStrategy(defaultProccessor);
+  /** @type {Dependencies | null} */
+  this.dependencies = null;
+
   this.currentTree = new FSTree();
 
   /* Destructuring assignment in node 0.12.2 would be really handy for this! */
@@ -105,6 +111,9 @@ function Filter(inputTree, options) {
 
   this.processor.init(this);
 
+  // TODO: don't enable this by default. it's just for testing.
+  /** @type {boolean} */
+  this.dependencyInvalidation = options && options.dependencyInvalidation || false;
   this._canProcessCache = Object.create(null);
   this._destFilePathCache = Object.create(null);
   this._needsReset = false;
@@ -123,43 +132,99 @@ function timeSince(time) {
   return (deltaNS / 1e6).toFixed(2) +' ms';
 }
 
+/**
+ * @param invalidated {Array<string>} The files that have been invalidated.
+ * @param currentTree {FSTree} the current tree - for entry lookup.
+ * @param nextTree {FSTree} The next tree - for entry lookup.
+ */
+function invalidationsAsPatches(invalidated, currentTree, nextTree) {
+  if (invalidated.length === 0) {
+    return [];
+  }
+  /** @type {Array<FSTree.Operation>} */
+  let patches = [];
+  let currentEntries = {};
+  for (let entry of currentTree.entries) {
+    currentEntries[entry.relativePath] = entry;
+  }
+  let nextEntries = {};
+  for (let entry of nextTree.entries) {
+    nextEntries[entry.relativePath] = entry;
+  }
+  for (let file of invalidated) {
+    if (currentEntries[file]) {
+      patches.push(['change', file, currentEntries[file]]);
+    } else if (nextEntries[file]) {
+      patches.push(['create', file, nextEntries[file]]);
+    }
+  }
+  return patches;
+}
+
 Filter.prototype.build = function() {
+  // @ts-ignore
+  let srcDir = this.inputPaths[0];
+  // @ts-ignore
+  let destDir = this.outputPath;
+
+  if (this.dependencyInvalidation && !this.dependencies) {
+    this.dependencies = this.processor.initialDependencies(srcDir);
+  }
+
   if (this._needsReset) {
     this.currentTree = new FSTree();
+    // @ts-ignore
     let instrumentation = heimdall.start('reset');
+    if (this.dependencies) {
+      this.dependencies = this.processor.initialDependencies(srcDir);
+    }
+    // @ts-ignore
     rimraf.sync(this.outputPath);
+    // @ts-ignore
     mkdirp.sync(this.outputPath);
     instrumentation.stop();
   }
 
-
-  let srcDir = this.inputPaths[0];
-  let destDir = this.outputPath;
-
   let prevTime = process.hrtime();
+  // @ts-ignore
   let instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
   let walkStart = process.hrtime();
   let entries = walkSync.entries(srcDir);
+  let nextTree = FSTree.fromEntries(entries);
   let walkDuration = timeSince(walkStart);
 
-  let nextTree = FSTree.fromEntries(entries);
-  let currentTree = this.currentTree;
+  let invalidationsStart = process.hrtime();
+  let invalidated = this.dependencies && this.dependencies.getInvalidatedFiles() || [];
+  this._logger.info('found', invalidated.length, 'files invalidated due to dependency changes.');
+  let invalidationPatches = invalidationsAsPatches(invalidated, this.currentTree, nextTree);
+  let invalidationsDuration = timeSince(invalidationsStart);
 
-  this.currentTree = nextTree;
-
-  let patches = currentTree.calculatePatch(nextTree);
+  let patches = this.currentTree.calculatePatch(nextTree);
+  patches = addPatches(invalidationPatches, patches);
 
   instrumentation.stats.patches = patches.length;
   instrumentation.stats.entries = entries.length;
+  instrumentation.stats.invalidations = {
+    dependencies: this.dependencies ? this.dependencies.countUnique() : 0,
+    count: invalidationPatches.length,
+    duration: invalidationsDuration
+  };
   instrumentation.stats.walk = {
     entries: entries.length,
     duration: walkDuration
   };
 
+  this.currentTree = nextTree;
+
   this._logger.info('derivePatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation.stats));
 
   instrumentation.stop();
+
+  if (this.dependencies && patches.length > 0) {
+    let files = patches.filter(p => p[0] === 'unlink').map(p => p[1]);
+    this.dependencies = this.dependencies.copyWithout(files);
+  }
 
   if (patches.length === 0) {
     // no work, exit early
@@ -171,6 +236,7 @@ Filter.prototype.build = function() {
 
   // used with options.async = true to allow 'create' and 'change' operations to complete async
   const pendingWork = [];
+  // @ts-ignore
   return heimdall.node('applyPatches', ApplyPatchesSchema, instrumentation => {
     let prevTime = process.hrtime();
     return mapSeries(patches, patch => {
@@ -179,6 +245,7 @@ Filter.prototype.build = function() {
       let entry = patch[2];
       let outputPath = destDir + '/' + (this.getDestFilePath(relativePath, entry) || relativePath);
       let outputFilePath = outputPath;
+      let forceInvalidation = invalidated.includes(relativePath);
 
       this._logger.debug('[operation:%s] %s', operation, relativePath);
 
@@ -196,7 +263,7 @@ Filter.prototype.build = function() {
           // wrap this in a function so it doesn't actually run yet, and can be throttled
           let changeOperation = () => {
             instrumentation.change++;
-            return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, true, instrumentation);
+            return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, forceInvalidation, true, instrumentation);
           };
           if (this.async) {
             pendingWork.push(changeOperation);
@@ -207,7 +274,7 @@ Filter.prototype.build = function() {
           // wrap this in a function so it doesn't actually run yet, and can be throttled
           let createOperation = () => {
             instrumentation.create++;
-            return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, false, instrumentation);
+            return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, forceInvalidation, false, instrumentation);
           };
           if (this.async) {
             pendingWork.push(createOperation);
@@ -222,13 +289,16 @@ Filter.prototype.build = function() {
       return queue(worker, pendingWork, this.concurrency);
     }).then((result) => {
       this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+      if (this.dependencies) {
+        this.processor.sealDependencies(this.dependencies);
+      }
       this._needsReset = false;
       return result;
     });
   });
 };
 
-Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, isChange, stats) {
+Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, outputPath, forceInvalidation, isChange, stats) {
   stats.handleFile++;
 
   let handleFileStart = process.hrtime();
@@ -243,7 +313,7 @@ Filter.prototype._handleFile = function(relativePath, srcDir, destDir, entry, ou
         delete this._outputLinks[outputPath];
         fs.unlinkSync(outputPath);
       }
-      result = this.processAndCacheFile(srcDir, destDir, entry, isChange, stats);
+      result = this.processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, stats);
     } else {
       stats.linked++;
       if (isChange) {
@@ -303,10 +373,12 @@ Filter.prototype.canProcessFile =
 };
 
 Filter.prototype.isDirectory = function(relativePath, entry) {
+  // @ts-ignore
   if (this.inputPaths === undefined) {
     return false;
   }
 
+  // @ts-ignore
   let srcDir = this.inputPaths[0];
   let path = srcDir + '/' + relativePath;
 
@@ -336,13 +408,13 @@ Filter.prototype.getDestFilePath = function(relativePath, entry) {
   return null;
 };
 
-Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, isChange, instrumentation) {
+Filter.prototype.processAndCacheFile = function(srcDir, destDir, entry, forceInvalidation, isChange, instrumentation) {
   let filter = this;
   let relativePath = entry.relativePath;
 
   return Promise.resolve().
     then(() => {
-      return filter.processFile(srcDir, destDir, relativePath, isChange, instrumentation, entry);
+      return filter.processFile(srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry);
     }).
     then(undefined,
       // TODO(@caitp): error wrapper is for API compat, but is not particularly
@@ -362,7 +434,7 @@ function invoke(context, fn, args) {
   });
 }
 
-Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange, instrumentation, entry) {
+Filter.prototype.processFile = function(srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry) {
   let filter = this;
   let inputEncoding = this.inputEncoding;
   let outputEncoding = this.outputEncoding;
@@ -376,7 +448,7 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
 
   instrumentation.processString++;
   let processStringStart = process.hrtime();
-  let string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, instrumentation]);
+  let string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, forceInvalidation, instrumentation]);
 
   return string.then(outputString => {
     instrumentation.processStringTime += nanosecondsSince(processStringStart);
@@ -393,7 +465,6 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
     if (isChange) {
       let isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
       if (isSame) {
-
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
         return;
       } else {
@@ -418,7 +489,12 @@ Filter.prototype.processFile = function(srcDir, destDir, relativePath, isChange,
   });
 };
 
-Filter.prototype.processString = function(/* contents, relativePath */) {
+/**
+ * @param contents {string}
+ * @param relativePath {string}
+ * @returns {string}
+ */
+Filter.prototype.processString = function(contents, relativePath) { // jshint ignore:line
   throw new Error(
       'When subclassing broccoli-persistent-filter you must implement the ' +
       '`processString()` method.');

@@ -68,23 +68,30 @@ class Filter {
 
 ### Options
 
+* `annotation`: Same as
+  [broccoli-plugin](https://github.com/broccolijs/broccoli-plugin#new-plugininputnodes-options);
+  see there.
+* `async`: Whether the `create` and `change` file operations are allowed to
+  complete asynchronously (true|false, default: false)
+* `concurrency`: Used with `async: true`. The number of operations that can be
+  run concurrently. This overrides the value set with `JOBS=n` environment
+  variable. (default: the number of detected CPU cores - 1, with a min of 1)
+* `dependencyInvalidation`: Defaults to false. Setting this option to `true` will
+  allow the plugin to track other files as dependencies that affect the output
+  for that file. See *Dependency Invalidation* below for more information.
 * `extensions`: An array of file extensions to process, e.g. `['md', 'markdown']`.
-* `targetExtension`: The file extension of the corresponding output files, e.g.
-  `'html'`.
 * `inputEncoding`: The character encoding used for reading input files to be
   processed (default: `'utf8'`). For binary files, pass `null` to receive a
   `Buffer` object in `processString`.
+* `name`: Same as
+  [broccoli-plugin](https://github.com/broccolijs/broccoli-plugin#new-plugininputnodes-options);
+  see there.
 * `outputEncoding`: The character encoding used for writing output files after
   processing (default: `'utf8'`). For binary files, pass `null` and return a
   `Buffer` object from `processString`.
-* `async`: Whether the `create` and `change` file operations are allowed to
-  complete asynchronously (true|false, default: false)
-* `name`, `annotation`: Same as
-  [broccoli-plugin](https://github.com/broccolijs/broccoli-plugin#new-plugininputnodes-options);
-  see there.
-* `concurrency`: Used with `async: true`. The number of operations that can be
-  run concurrently. This overrides the value set with `JOBS=n` environment variable.
-  (default: the number of detected CPU cores - 1, with a min of 1)
+* `persist`: Defaults to `false`. When `true`, causes the plugin to cache the results of processing a file to disk so that it can be re-used during the next build. See *Persistent Cache* below for more information.
+* `targetExtension`: The file extension of the corresponding output files, e.g.
+  `'html'`.
 
 All options except `name` and `annotation` can also be set on the prototype
 instead of being passed into the constructor.
@@ -148,9 +155,15 @@ Subclass.prototype.cacheKey = function() {
 }
 ```
 
-The second key, represents the contents of the file. Typically the base-class's functionality
-is sufficient, as it merely generates a checksum of the file contents. If for some reason this
-is not sufficient, it can be re-configured via subclassing.
+The second key, represents the contents of the file. Typically the
+base-class's functionality is sufficient, as it merely generates a checksum
+of the file contents. If for some reason this is not sufficient (e.g. if the
+file name should be considered), it can be re-configured via sub-classing.
+
+Note that this method is not useful for general purpose cache invalidation
+since it's only used to restore the cache across processes and doesn't apply
+for rebuilds. See the `dependencyInvalidation` option above to invalidate
+files that have dependencies that affect the output.
 
 ```js
 Subclass.prototype.cacheKeyProcessString = function(string, relativePath) {
@@ -183,6 +196,37 @@ To clear the persistent cache on any particular build, set the `CLEAR_BROCCOLI_P
 ```sh
 CLEAR_BROCCOLI_PERSISTENT_FILTER_CACHE=true ember serve
 ```
+
+## Dependency Invalidation
+
+When the output of `processString()` can depend on files other than the
+primary input file, the broccoli plugin should use the
+`dependencyInvalidation` option and these related APIs to cause the output
+cache to become automatically invalidated should those other input files
+change.
+
+Plugins that enable the `dependencyInvalidation` option will have an instance
+property `dependencies` that can be used to register dependencies for a file.
+
+During either `processString` or `postProcess`, the plugin should call
+`this.dependencies.setDependencies(relativeFile, arrayOfDeps)` to establish
+which files this file depends on.
+
+Dependency invalidation works during rebuilds as well as when restoring results
+from the persistent cache.
+
+When tracking dependencies, `setDependencies()` should always be called when
+processing a file that could have dependencies. If a file has no
+dependencies, pass an empty array. Failure to do this can result in stale
+dependency information about the file.
+
+The dependencies passed to `setDependencies()` can be absolute paths or
+relative. If relative, the path will be assumed relative to the file being
+processed. The dependencies can be within the broccoli tree or outside it
+(note: adding dependencies outside the tree does not cause those files to be
+watched). Files inside the broccoli tree are tracked for changes using a
+checksum because files in broccoli trees do not have stable timestamps. Files
+outside the tree are tracked using modification time.
 
 ## FAQ
 
