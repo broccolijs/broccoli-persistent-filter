@@ -2,7 +2,7 @@
 
 # 2.3.0
 
-* add optional enchanced dependency tracking
+* add optional enhanced dependency tracking
 
 # 2.2.3
 
