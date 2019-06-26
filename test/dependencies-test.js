@@ -17,11 +17,10 @@ function pathFor(root, filePath) {
     filePath = root;
     root = undefined;
   }
-  filePath = filePath.split("/").join(path.sep);
   if (root) {
-    return path.normalize(path.resolve(root, filePath));
+    return path.resolve(root, filePath);
   } else {
-    return filePath;
+    return path.normalize(filePath);
   }
 }
 
@@ -65,6 +64,18 @@ describe('Dependency Invalidation', function() {
     dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
       pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
       pathFor(EXT_DEP_FIXTURE_DIR, 'dep-1.txt')
+    ]);
+    assert.deepEqual(dependencies.dependencyMap.get(pathFor('subdir/subdirFile1.txt')), [
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
+      pathFor(EXT_DEP_FIXTURE_DIR, 'dep-1.txt')
+    ]);
+  });
+
+  it('normalizes paths', function() {
+    let dependencies = new Dependencies(path.join(__dirname, 'fixtures', 'something', '..', 'dependencies')); // always uses path.sep and contains a parent directory.
+    dependencies.setDependencies('othersubdir/../subdir/subdirFile1.txt', [ // always passes unix paths and contains a parent directory.
+      path.join(DEP_FIXTURE_DIR, 'thirdSubdir/../subdir/subdirFile2.txt'), // mixes windows and unix paths and has a parent directory.
+      path.join(EXT_DEP_FIXTURE_DIR, 'dep-1.txt')
     ]);
     assert.deepEqual(dependencies.dependencyMap.get(pathFor('subdir/subdirFile1.txt')), [
       pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
