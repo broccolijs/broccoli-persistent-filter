@@ -8,21 +8,14 @@ const file = chaiFiles.file;
 const co = require('co');
 const heimdall = require('heimdalljs');
 
-const testHelpers = require('broccoli-test-helper');
-const createBuilder = testHelpers.createBuilder;
-const createTempDir = testHelpers.createTempDir;
+const { createBuilder, createTempDir } = require('broccoli-test-helper');
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
 chai.use(chaiFiles);
 
 const sinon = require('sinon');
-const broccoliTestHelpers = require('broccoli-test-helpers');
 
-const makeTestHelper = broccoliTestHelpers.makeTestHelper;
-const cleanupBuilders = broccoliTestHelpers.cleanupBuilders;
-
-const inherits = require('util').inherits;
 const fs = require('fs');
 const mkdirp = require('mkdirp');
 const path = require('path');
@@ -38,12 +31,6 @@ const Rot13Filter = require('./helpers/rot13');
 const Rot13AsyncFilter = require('./helpers/rot13-async');
 const Inliner = require('./helpers/inliner');
 
-const rootFixturePath = path.join(__dirname, 'fixtures');
-
-function fixturePath(relativePath) {
-  return path.join(rootFixturePath, relativePath);
-}
-
 function millisecondsSince(time) {
   var delta = process.hrtime(time);
   return (delta[0] * 1e9 + delta[1]) / 1e6;
@@ -51,17 +38,6 @@ function millisecondsSince(time) {
 
 
 describe('Filter', function() {
-  function makeBuilder(plugin, dir, prepSubject) {
-    return makeTestHelper({
-      subject: plugin,
-      fixturePath: dir,
-      prepSubject: prepSubject
-    });
-  }
-
-  afterEach(function() {
-    cleanupBuilders();
-  });
 
   function write(relativePath, contents, _encoding) {
     let encoding = _encoding === undefined ? 'utf8' : _encoding;
@@ -71,62 +47,79 @@ describe('Filter', function() {
       encoding
     });
   }
+  describe('basic smoke test', function () {
+    let input;
 
-  it('throws if called as a function', function() {
-    expect(() => Filter()).to.throw(TypeError, /abstract class and must be sub-classed/);
-  });
+    beforeEach(co.wrap(function* () {
+      input = yield createTempDir();
+      input.write({
+        'a': {
+          'README.md': 'Nicest cats in need of homes',
+          'foo.js': 'Nicest dogs in need of homes',
+          'bar': {
+            'bar.js': 'Dogs... who needs dogs?'
+          }
+        },
+        'dir-with-extensions': {
+          'a': {
+            'loader.js': {
+              'loader.js': ''
+            }
+          }
+        }
+      });
+    }));
 
-  it('throws if called on object which does not a child class of Filter', function() {
-    expect(() => Filter.call({})).to.throw(TypeError, /abstract class and must be sub-classed/);
-    expect(() => Filter.call([])).to.throw(TypeError, /abstract class and must be sub-classed/);
-    expect(() => Filter.call(global)).to.throw(TypeError, /abstract class and must be sub-classed/);
-  });
+    afterEach(co.wrap(function* () {
+      yield input.dispose();
+    }));
 
-  it('throws if base Filter class is new-ed', function() {
-    expect(() => new Filter()).to.throw(TypeError, /abstract class and must be sub-classed/);
-  });
-
-  it('throws if `processString` is not implemented', function() {
-    expect(() => new IncompleteFilter('.').processString('foo', 'fake_path')).to.throw(Error, /must implement/);
-  });
-
-  it('processes files with extensions included in `extensions` list by default', function() {
-   let filter = MyFilter('.', { extensions: ['c', 'cc', 'js']});
-
-    expect(filter.canProcessFile('foo.c')).to.equal(true);
-    expect(filter.canProcessFile('test.js')).to.equal(true);
-    expect(filter.canProcessFile('blob.cc')).to.equal(true);
-    expect(filter.canProcessFile('twerp.rs')).to.equal(false);
-  });
-
-  it('getDestFilePath returns null for directories when extensions is null', function() {
-    let inputPath = path.join(rootFixturePath, 'a/dir');
-    let filter = MyFilter(inputPath, { extensions: null });
-    filter.inputPaths = [inputPath];
-
-    expect(filter.getDestFilePath('a/bar')).to.equal(null);
-    expect(filter.getDestFilePath('a/bar/bar.js')).to.equal('a/bar/bar.js');
-  });
-
-  it('getDestFilePath returns null for directories with matching extensions', function() {
-    let inputPath = path.join(rootFixturePath, 'dir-with-extensions');
-    let filter = MyFilter(inputPath, { extensions: ['js'] });
-    filter.inputPaths = [inputPath];
-
-    expect(filter.getDestFilePath('a/loader.js')).to.equal(null);
-    expect(filter.getDestFilePath('a/loader.js/loader.js')).to.equal('a/loader.js/loader.js');
-  });
-
-  it('replaces matched extension with targetExtension by default', function() {
-    let filter = MyFilter('.', {
-      extensions: ['c', 'cc', 'js'],
-      targetExtension: 'zebra'
+    it('throws if base Filter class is new-ed', function() {
+      expect(() => new Filter('.')).to.throw(TypeError, /abstract class and must be sub-classed/);
     });
 
-    expect(filter.getDestFilePath('foo.c')).to.equal('foo.zebra');
-    expect(filter.getDestFilePath('test.js')).to.equal('test.zebra');
-    expect(filter.getDestFilePath('blob.cc')).to.equal('blob.zebra');
-    expect(filter.getDestFilePath('twerp.rs')).to.equal(null);
+    it('throws if `processString` is not implemented', function() {
+      expect(() => new IncompleteFilter('.').processString('foo', 'fake_path')).to.throw(Error, /must implement/);
+    });
+
+    it('processes files with extensions included in `extensions` list by default', function() {
+     let filter = new MyFilter('.', { extensions: ['c', 'cc', 'js']});
+
+      expect(filter.canProcessFile('foo.c')).to.equal(true);
+      expect(filter.canProcessFile('test.js')).to.equal(true);
+      expect(filter.canProcessFile('blob.cc')).to.equal(true);
+      expect(filter.canProcessFile('twerp.rs')).to.equal(false);
+    });
+
+    it('getDestFilePath returns null for directories when extensions is null', function() {
+      let inputPath = input.path();
+      let filter = new MyFilter(inputPath, { extensions: null });
+      filter.inputPaths = [inputPath];
+
+      expect(filter.getDestFilePath('a/bar')).to.equal(null);
+      expect(filter.getDestFilePath('a/bar/bar.js')).to.equal('a/bar/bar.js');
+    });
+
+    it('getDestFilePath returns null for directories with matching extensions', function() {
+      let inputPath = path.join(input.path(), 'dir-with-extensions');
+      let filter = new MyFilter(inputPath, { extensions: ['js'] });
+      filter.inputPaths = [inputPath];
+
+      expect(filter.getDestFilePath('a/loader.js')).to.equal(null);
+      expect(filter.getDestFilePath('a/loader.js/loader.js')).to.equal('a/loader.js/loader.js');
+    });
+
+    it('replaces matched extension with targetExtension by default', function() {
+      let filter = new MyFilter('.', {
+        extensions: ['c', 'cc', 'js'],
+        targetExtension: 'zebra'
+      });
+
+      expect(filter.getDestFilePath('foo.c')).to.equal('foo.zebra');
+      expect(filter.getDestFilePath('test.js')).to.equal('test.zebra');
+      expect(filter.getDestFilePath('blob.cc')).to.equal('blob.zebra');
+      expect(filter.getDestFilePath('twerp.rs')).to.equal(null);
+    });
   });
 
   describe('on rebuild', function() {
@@ -134,6 +127,15 @@ describe('Filter', function() {
 
     beforeEach(co.wrap(function* () {
       input = yield createTempDir();
+      input.write({
+        'a': {
+          'README.md': 'Nicest cats in need of homes',
+          'foo.js': 'Nicest dogs in need of homes',
+          'bar': {
+            'bar.js': 'Dogs... who needs dogs?'
+          }
+        }
+      });
       subject = new Rot13Filter(input.path());
       sinon.spy(subject, 'processString');
       sinon.spy(subject, 'postProcess');
@@ -146,17 +148,8 @@ describe('Filter', function() {
     }));
 
     it('calls processString a if work is needed', co.wrap(function* () {
-      input.write({
-        'a': {
-          'README.md': 'OMG',
-          'foo.js': 'Nicest dogs in need of homes',
-          'bar': {
-            'bar.js': 'Dogs... who needs dogs?'
-          }
-        }
-      });
 
-      let results = yield output.build();
+      yield output.build();
       // first time, build everything
       expect(subject.processString.callCount).to.equal(3);
       expect(subject.postProcess.callCount).to.equal(3);
@@ -164,7 +157,7 @@ describe('Filter', function() {
       subject.processString.callCount = 0;
       subject.postProcess.callCount = 0;
 
-      results = yield output.build();
+      yield output.build();
 
       // rebuild, but no changes (build nothing);
       expect(subject.processString.callCount).to.equal(0);
@@ -176,7 +169,7 @@ describe('Filter', function() {
         }
       });
 
-      results = yield output.build();
+      yield output.build();
       // rebuild 1 file
       expect(subject.processString.callCount).to.equal(1);
       expect(subject.postProcess.callCount).to.equal(1);
@@ -188,7 +181,7 @@ describe('Filter', function() {
         'a': { 'README.md': null }
       });
 
-      results = yield output.build();
+      yield output.build();
       // rebuild 0 files
       expect(subject.processString.callCount).to.equal(0);
       expect(subject.postProcess.callCount).to.equal(0);
@@ -199,17 +192,12 @@ describe('Filter', function() {
       let output;
       let subject;
 
-      function Plugin(inputNode, options) {
-        if (!this) {
-          return new Plugin(inputNode, options);
+      class Plugin extends Filter {
+        constructor(inputNode, options) {
+          super(inputNode, options);
+          this.shouldFail = true;
         }
-
-        this.shouldFail = true;
-        Filter.call(this, inputNode, options);
       }
-
-      inherits(Plugin, Filter);
-
       Plugin.prototype.processString = function(content) {
         let shouldFail = this.shouldFail;
         this.shouldFail = false;
@@ -233,7 +221,7 @@ describe('Filter', function() {
 
       it('works', co.wrap(function* () {
         input.write({
-          'index.js': 'console.log("hi")'
+          'index.js': `console.log('hi')`
         });
 
         let didFail = false;
@@ -249,15 +237,12 @@ describe('Filter', function() {
         yield output.build();
 
         expect(output.read(), 'to no long be empty').to.deep.equal({
-          'index.js': 'console.log("hi")'
+          'index.js': `console.log('hi')`
         });
       }));
     });
 
     describe('build failures - async', function() {
-      let testHelpers = require('broccoli-test-helper');
-      let createBuilder = testHelpers.createBuilder;
-      let createTempDir = testHelpers.createTempDir;
 
       let input;
       let output;
@@ -302,10 +287,10 @@ describe('Filter', function() {
 
       it('completes all pending work before returning', co.wrap(function* () {
         input.write({
-          'index0.js': 'console.log("hi")',
-          'index1.js': 'console.log("hi")',
-          'index2.js': 'console.log("hi")',
-          'index3.js': 'console.log("hi")',
+          'index0.js': `console.log('hi')`,
+          'index1.js': `console.log('hi')`,
+          'index2.js': `console.log('hi')`,
+          'index3.js': `console.log('hi')`,
         });
 
         let didFail = false;
@@ -317,388 +302,423 @@ describe('Filter', function() {
         }
         expect(didFail).to.eql(true, 'build should fail');
         expect(output.read(), 'should write the files that did not fail').to.deep.equal({
-          'index1.js': 'console.log("hi")',
-          'index3.js': 'console.log("hi")',
+          'index1.js': `console.log('hi')`,
+          'index3.js': `console.log('hi')`,
         });
       }));
     });
 
-    describe('with extensions & targetExtension', function() {
-      it('calls processString if work is needed', co.wrap(function* () {
-        let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
-          sinon.spy(awk, 'processString');
-          return awk;
-        });
-        let originalFileContent;
-        let originalFilePath;
-        let originalJSFileContent;
-        let originalJSFilePath;
-        let someDirPath;
-        let awk;
-
-        try {
-          let results = yield builder('dir', {
-            extensions: ['js'],
-            targetExtension: 'OMG'
-          });
-
-          awk = results.subject;
-          // first time, build everything
-          expect(awk.processString.callCount).to.equal(2);
-          awk.processString.callCount = 0;
-
-          results = yield results.builder();
-
-          awk = results.subject;
-          // rebuild, but no changes (build nothing);
-          expect(awk.processString.callCount).to.equal(0);
-
-          originalFilePath = awk.inputPaths[0] + '/a/README.md';
-          originalFileContent = fs.readFileSync(originalFilePath);
-          fs.writeFileSync(originalFilePath, 'OMG');
-
-          expect(file(results.directory + '/a/foo.OMG')).to.exist;
-
-          results = yield results.builder();
-
-          awk = results.subject;
-          // rebuild 0 files, changed file does not match extensions
-          expect(awk.processString.callCount).to.equal(0);
-          awk.processString.callCount = 0;
-          fs.unlinkSync(originalFilePath);
-
-          results = yield results.builder();
-
-          awk = results.subject;
-          // rebuild 0 files
-          expect(awk.processString.callCount).to.equal(0);
-          someDirPath = awk.inputPaths[0] + '/fooo/';
-          fs.mkdirSync(someDirPath);
-
-          results = yield results.builder();
-
-          awk = results.subject;
-          // rebuild, but no changes (build nothing);
-          expect(awk.processString.callCount).to.equal(0);
-
-          originalJSFilePath = awk.inputPaths[0] + '/a/foo.js';
-          originalJSFileContent = fs.readFileSync(originalJSFilePath);
-          fs.writeFileSync(originalJSFilePath, 'OMG');
-
-          results = yield results.builder();
-
-          awk = results.subject;
-          // rebuild, but no changes (build nothing);
-          expect(awk.processString.callCount).to.equal(1);
-          expect(fs.readFileSync(results.directory + '/a/foo.OMG', 'UTF-8')).to.eql('BZT');
-
-          yield results.builder();
-
-        } finally {
-          try {
-            fs.writeFileSync(originalFilePath, originalFileContent);
-          } catch(e) { }
-          try {
-            fs.rmdirSync(someDirPath);
-          } catch(e) { }
-
-          try {
-            fs.writeFileSync(originalJSFilePath, originalJSFileContent);
-          } catch(e) { }
-        }
-      }));
-    });
-
-    it('handles renames', co.wrap(function* () {
-      let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
-        sinon.spy(awk, 'processString');
-        return awk;
+    it('calls processString if work is needed', co.wrap(function* () {
+      const subject = new Rot13Filter(input.path(), {
+        extensions: ['js'],
+        targetExtension: 'OMG'
       });
 
-      let filePathPrevious;
-      let filePathNext;
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
 
-      try {
-        let results = yield builder('dir', {
-          extensions: ['md'],
-          targetExtension: ['foo.md']
-        });
+      yield output.build();
 
-        let awk = results.subject;
-        // first time, build everything
-        expect(awk.processString.callCount).to.equal(1);
-        awk.processString.callCount = 0;
+      // first time, build everything
+      expect(subject.processString.callCount).to.equal(2);
+      subject.processString.callCount = 0;
+      expect(output.changes()).to.deep.equal({
+        'a/': 'mkdir',
+        'a/README.md': 'create',
+        'a/bar/': 'mkdir',
+        'a/bar/bar.OMG': 'create',
+        'a/foo.OMG': 'create'
+      });
 
-        filePathPrevious = awk.inputPaths[0] + '/a/README.md';
-        filePathNext = awk.inputPaths[0] + '/a/README-renamed.md';
+      yield output.build();
 
-        fs.writeFileSync(filePathNext, fs.readFileSync(filePathPrevious));
-        fs.unlinkSync(filePathPrevious);
+      // rebuild, but no changes (build nothing);
+      expect(subject.processString.callCount).to.equal(0);
 
-        results = yield results.builder();
+      input.write({
+        a : {
+          'README.md' : 'OMG'
+        }
+      });
 
-        expect(results.files).to.eql([
-          'a/',
-          'a/README-renamed.foo.md',
-          'a/bar/',
-          'a/bar/bar.js',
-          'a/foo.js'
-        ]);
-      } finally {
-        fs.writeFileSync(filePathPrevious, fs.readFileSync(filePathNext));
-        fs.unlinkSync(filePathNext);
-      }
+      yield output.build();
+
+      // rebuild 0 files, changed file does not match extensions
+      expect(subject.processString.callCount).to.equal(0);
+      subject.processString.callCount = 0;
+      input.write({
+        a : {
+          'README.md' : null
+        }
+      });
+
+      yield output.build();
+
+      // rebuild 0 files
+      expect(subject.processString.callCount).to.equal(0);
+      input.write({
+        fooo: {
+
+        }
+      });
+
+      yield output.build();
+
+      // rebuild, but no changes (build nothing);
+      expect(subject.processString.callCount).to.equal(0);
+
+      input.write({
+        a: {
+          'foo.js': 'OMG'
+        }
+      });
+
+      yield output.build();
+
+      // rebuild, but no changes (build nothing);
+      expect(subject.processString.callCount).to.equal(1);
+      expect(output.read()).to.deep.equal({
+        'a': {
+          'bar': {
+            'bar.OMG': 'Qbtf... jub arrqf qbtf?'
+          },
+          'foo.OMG': 'BZT'
+        },
+        'fooo': {}
+      });
+    }));
+
+    it('handles renames', co.wrap(function* () {
+      const subject = new Rot13Filter(input.path(), {
+        extensions: ['md'],
+        targetExtension: ['foo.md']
+      });
+
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
+      yield output.build();
+
+      // first time, build everything
+      expect(subject.processString.callCount).to.equal(1);
+      subject.processString.callCount = 0;
+      input.write({
+        a: {
+          'README-renamed.md': 'Nicest cats in need of homes',
+          'README.md': null
+        }
+      });
+
+      yield output.build();
+
+      expect(output.readDir()).to.eql([
+        'a/',
+        'a/README-renamed.foo.md',
+        'a/bar/',
+        'a/bar/bar.js',
+        'a/foo.js'
+      ]);
     }));
 
     it('preserves mtimes if neither content did not actually change', co.wrap(function* () {
-      let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
-        sinon.spy(awk, 'processString');
-        return awk;
-      });
-
-      let stat;
-      let filePath;
-
-      let results = yield builder('dir', {
+      subject = new Rot13Filter(input.path(), {
         extensions: ['md']
       });
-
-      let awk = results.subject;
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
+      let stat;
+      let filePath;
+      yield output.build();
       // first time, build everything
-      expect(awk.processString.callCount).to.equal(1);
-      awk.processString.callCount = 0;
-      filePath = awk.inputPaths[0] + '/a/README.md';
+      expect(subject.processString.callCount).to.equal(1);
+      subject.processString.callCount = 0;
+      filePath = input.path('a/README.md');
 
       fs.writeFileSync(filePath, fs.readFileSync(filePath));
       stat = fs.statSync(filePath);
 
-      results = yield results.builder();
+      yield output.build();
 
-      awk = results.subject;
       let afterRebuildStat = fs.statSync(filePath);
 
-      expect(awk.processString).to.have.been.calledOnce;
+      expect(subject.processString).to.have.been.calledOnce;
       // rebuild changed file
-      expect(awk.processString).to.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
+      expect(subject.processString).to.have.been.calledWith('Nicest cats in need of homes', 'a/README.md');
 
-      // although file was "rebuilt", no observable difference can be observed
+      // although file was 'rebuilt', no observable difference can be observed
       expect(stat.mode).to.equal(afterRebuildStat.mode);
       expect(stat.size).to.equal(afterRebuildStat.size);
       expect(stat.mtime.getTime()).to.equal(afterRebuildStat.mtime.getTime());
     }));
   });
 
-  it('targetExtension work for no extensions', co.wrap(function* () {
-    let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
-      sinon.spy(awk, 'processString');
-      return awk;
-    });
+  describe(`targetExtension`, function () {
+    let input, subject, output;
 
-    let results = yield builder('dir', {
-      targetExtension: 'foo',
-      extensions: []
-    });
+    beforeEach(co.wrap(function* () {
+      input = yield createTempDir();
+      input.write({
+        a: {
+          'README.md': 'Nicest cats in need of homes',
+          bar: {
+            'bar.js': 'Dogs... who needs dogs?'
+          },
+          'foo.js': 'Nicest dogs in need of homes'
+        }
+      });
+      subject = new Rot13Filter(input.path());
+      sinon.spy(subject, 'processString');
+      sinon.spy(subject, 'postProcess');
+      output = createBuilder(subject);
+    }));
 
-    let awk = results.subject;
+    afterEach(co.wrap(function* () {
+      yield input.dispose();
+      yield output.dispose();
+    }));
+    it('targetExtension work for no extensions', co.wrap(function* () {
+      const subject = new Rot13Filter(input.path(), {
+        targetExtension: 'foo',
+        extensions: []
+      });
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
+      yield output.build();
+      expect(output.readText('a/README.md')).to.be.equal('Nicest cats in need of homes');
+      expect(output.readText('a/foo.js')).to.be.equal('Nicest dogs in need of homes');
+      expect(subject.processString.callCount).to.equal(0);
+    }));
 
-    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
-    expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
+    it('targetExtension work for single extensions', co.wrap(function* () {
+      const subject = new Rot13Filter(input.path(), {
+        targetExtension: 'foo',
+        extensions: ['js']
+      });
 
-    expect(awk.processString.callCount).to.equal(0);
-  }));
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
+      yield output.build();
 
-  it('targetExtension work for single extensions', co.wrap(function* () {
-    let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
-      sinon.spy(awk, 'processString');
-      return awk;
-    });
+      expect(output.readText('a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(output.readText('a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+      expect(subject.processString.callCount).to.equal(2);
 
-    let results = yield builder('dir', {
-      targetExtension: 'foo',
-      extensions: ['js']
-    });
+    }));
 
-    let awk = results.subject;
+    it('targetExtension work for multiple extensions', co.wrap(function* () {
+      const subject = new Rot13Filter(input.path(), {
+        targetExtension: 'foo',
+        extensions: ['js','md']
+      });
 
-    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
-    expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
+      yield output.build();
 
-    expect(awk.processString.callCount).to.equal(2);
-  }));
+      expect(output.readText('/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
+      expect(output.readText('/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+      expect(subject.processString.callCount).to.equal(3);
+    }));
 
-  it('targetExtension work for multiple extensions', co.wrap(function* () {
-    let builder = makeBuilder(Rot13Filter, fixturePath('a'), awk => {
-      sinon.spy(awk, 'processString');
-      return awk;
-    });
+    it('targetExtension work for multiple extensions - async', co.wrap(function* () {
+      this.timeout(30*1000); // takes >10s when run with node 0.12
+      let subject = new Rot13AsyncFilter(input.path(), {
+        targetExtension: 'foo',
+        extensions: ['js', 'md'],
+        async: true,
+      });
+      let output = createBuilder(subject);
 
-    let results = yield builder('dir', {
-      targetExtension: 'foo',
-      extensions: ['js','md']
-    });
+      yield output.build();
 
-    let awk = results.subject;
+      expect(output.readText('a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
+      expect(output.readText('a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
+    }));
 
-    expect(file(results.directory + '/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
-    expect(file(results.directory + '/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
-
-    expect(awk.processString.callCount).to.equal(3);
-  }));
-
-  it('targetExtension work for multiple extensions - async', co.wrap(function* () {
-    this.timeout(30*1000); // takes >10s when run with node 0.12
-    let subject = new Rot13AsyncFilter(fixturePath('a'), {
-      targetExtension: 'foo',
-      extensions: ['js', 'md'],
-      async: true,
-    });
-    let output = createBuilder(subject);
-
-    yield output.build();
-
-    expect(output.read().dir['a']['README.foo']).to.equal('Avprfg pngf va arrq bs ubzrf');
-    expect(output.read().dir['a']['foo.foo']).to.equal('Avprfg qbtf va arrq bs ubzrf');
-  }));
-
-  it('handles directories that older versions of walkSync do not sort lexicographically', co.wrap(function* () {
-    let builder = makeBuilder(Rot13Filter, fixturePath('b'), awk => {
-      sinon.spy(awk, 'processString');
-      return awk;
-    });
-
-    let results = yield builder('dir', {
-      targetExtension: 'foo',
-      extensions: ['js']
-    });
-
-    let awk = results.subject;
-
-    expect(file(results.directory + '/foo.md')).to.equal('Nicest cats in need of homes');
-    expect(file(results.directory + '/foo/bar.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
-
-    expect(awk.processString.callCount).to.equal(1);
-  }));
-
-  it('should processString when canProcessFile returns true', co.wrap(function* () {
-    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-      sinon.spy(awk, 'processString');
-      return awk;
-    });
-
-    let results = yield builder('dir', {
-      glob: '**/*.md',
-      search: 'dogs',
-      replace: 'cats',
-      targetExtension: 'foo'
-    });
-
-    let awk = results.subject;
-
-    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes');
-    expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes');
-    expect(awk.processString.callCount).to.equal(1);
-  }));
-
-  it('should processString and postProcess', co.wrap(function* () {
-    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-      awk.postProcess = function(object) {
-        expect(object.output).to.exist;
-
-        object.output = object.output + 0x00 + 'POST_PROCESSED!!';
-
-        return object;
-      };
-
-      sinon.spy(awk, 'processString');
-      sinon.spy(awk, 'postProcess');
-
-      return awk;
-    });
-
-    let results = yield builder('dir', {
-      search: 'dogs',
-      replace: 'cats'
-    });
-    let awk = results.subject;
-
-    expect(file(results.directory + '/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
-    expect(file(results.directory + '/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
-
-    expect(awk.processString.callCount).to.equal(3);
-    expect(awk.postProcess.callCount).to.equal(3);
-  }));
-
-  it('complains if canProcessFile is true but getDestFilePath is null', function() {
-    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-      awk.canProcessFile = function() {
-        // We cannot return `true` here unless `getDestFilePath` also returns
-        // a path
-        return true;
-      };
-      return awk;
-    });
-
-    return expect(builder('dir', {
-      glob: '**/*.md',
-      search: 'dogs',
-      replace: 'cats'
-    })).to.eventually.be.rejectedWith(Error, /getDestFilePath.* is null/);
   });
 
-  it('purges cache', co.wrap(function *() {
-    let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-      return awk;
-    });
+  it('handles directories that older versions of walkSync do not sort lexicographically', co.wrap(function* () {
+    let input = yield createTempDir();
+    try {
+      const subject = new Rot13Filter(input.path(), {
+        targetExtension: 'foo',
+        extensions: ['js']
+      });
 
-    let fileForRemoval = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
+      input.write({
+        foo: {
+          'bar.js': 'Nicest dogs in need of homes'
+        },
+        'foo.md': 'Nicest dogs in need of homes'
+      });
 
-    let results = yield builder('dir', {
-      glob: '**/*.md',
-      search: 'dogs',
-      replace: 'cats'
-    });
+      sinon.spy(subject, 'processString');
+      let output = createBuilder(subject);
+      try {
+        yield output.build();
+        expect(output.readText('/foo.md')).to.equal('Nicest dogs in need of homes');
+        expect(output.readText('foo/bar.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
 
-    expect(file(fileForRemoval)).to.exist;
-    rimraf(fileForRemoval);
-
-    expect(file(fileForRemoval)).to.not.exist;
-    expect(file(results.directory + '/a/README.md')).to.exist;
-
-    results = yield results.builder();
-
-    expect(file(results.directory + '/a/README.md')).to.not.exist;
-    expect(file(fileForRemoval)).to.not.exist;
-
-    write(fileForRemoval, 'Nicest cats in need of homes');
-    expect(file(fileForRemoval)).to.exist;
-
-    results = yield  results.builder();
-
-    expect(file(results.directory + '/a/foo.js')).to.exist;
+        expect(subject.processString.callCount).to.equal(1);
+      } finally {
+        yield output.dispose();
+      }
+    } finally {
+      yield input.dispose();
+    }
   }));
 
-  describe('stale entries', function() {
-    let fileForChange = path.join(fixturePath('a'), 'dir', 'a', 'README.md');
-    afterEach(function() {
-      write(fileForChange, 'Nicest cats in need of homes');
+  describe(`processString, canPorcessFile and Purge cache`, function () {
+    let input, output;
+
+    beforeEach(co.wrap(function* () {
+      input = yield createTempDir();
+      input.write({
+        a: {
+          'README.md': 'Nicest cats in need of homes',
+          bar: {
+            'bar.js': 'Dogs... who needs dogs?'
+          },
+          'foo.js': 'Nicest dogs in need of homes'
+        }
+      });
+    }));
+
+    afterEach(co.wrap(function* () {
+      yield input.dispose();
+      yield output.dispose();
+    }));
+
+    it('should processString when canProcessFile returns true', co.wrap(function* () {
+      const subject = new ReplaceFilter(input.path(), {
+        glob: '**/*.md',
+        search: 'dogs',
+        replace: 'cats',
+        targetExtension: 'foo'
+      });
+      sinon.spy(subject, 'processString');
+      output = createBuilder(subject);
+      yield output.build();
+      expect(output.readText('/a/README.md')).to.equal('Nicest cats in need of homes');
+      expect(output.readText('/a/foo.js')).to.equal('Nicest dogs in need of homes');
+      expect(subject.processString.callCount).to.equal(1);
+    }));
+
+    it('should processString and postProcess', co.wrap(function* () {
+        const subject = new ReplaceFilter(input.path(), {
+          search: 'dogs',
+          replace: 'cats'
+        });
+
+        subject.postProcess = function(object) {
+          expect(object.output).to.exist;
+
+          object.output = object.output + 0x00 + 'POST_PROCESSED!!';
+
+          return object;
+        };
+
+        sinon.spy(subject, 'processString');
+        sinon.spy(subject, 'postProcess');
+        output = createBuilder(subject);
+        yield output.build();
+        expect(output.readText('/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        expect(output.readText('/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        expect(subject.processString.callCount).to.equal(3);
+        expect(subject.postProcess.callCount).to.equal(3);
+    }));
+
+    it('complains if canProcessFile is true but getDestFilePath is null', function () {
+        const subject = new ReplaceFilter(input.path(), {
+          glob: '**/*.md',
+          search: 'dogs',
+          replace: 'cats'
+        });
+        subject.canProcessFile = function() {
+          // We cannot return `true` here unless `getDestFilePath` also returns
+          // a path
+          return true;
+        };
+        sinon.spy(subject, 'processString');
+        sinon.spy(subject, 'postProcess');
+        output = createBuilder(subject);
+        expect(output.build()).to.eventually.be.rejectedWith(Error, /getDestFilePath.* is null/);
     });
 
-    it('replaces stale entries', co.wrap(function* () {
-      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
+    it('purges cache', co.wrap(function *() {
+      const subject = new ReplaceFilter(input.path(), {
+        glob: '**/*.md',
+        search: 'dogs',
+        replace: 'cats'
+      });
+      const output = createBuilder(subject);
+      yield output.build();
+      input.write({
+        a: {
+          'README.md': null
+        }
+      });
+      expect(input.readDir()).to.not.includes('a/README.md');
+      expect(output.readDir()).to.includes('a/README.md');
+      yield output.build();
+      expect(output.readDir()).to.not.includes('a/README.md');
+      input.write({
+        a: {
+          'README.md': 'Nicest cats in need of homes'
+        }
+      });
+      expect(input.readDir()).to.includes('a/README.md');
+      yield output.build();
+      expect(output.readDir()).to.includes('a/foo.js');
+    }));
+  });
 
-      let results = yield builder('dir', {
+  describe('stale entries', function () {
+    let input, subject, output;
+
+    beforeEach(co.wrap(function* () {
+      input = yield createTempDir();
+      input.write({
+        a: {
+          'README.md': 'Nicest cats in need of homes',
+          bar: {
+            'bar.js': 'Dogs... who needs dogs?'
+          },
+          'foo.js': 'Nicest dogs in need of homes'
+        }
+      });
+      subject = new Rot13Filter(input.path());
+      sinon.spy(subject, 'processString');
+      sinon.spy(subject, 'postProcess');
+      output = createBuilder(subject);
+    }));
+
+    afterEach(co.wrap(function* () {
+      yield input.dispose();
+      yield output.dispose();
+    }));
+    it('replaces stale entries', co.wrap(function* () {
+      const subject = new ReplaceFilter(input.path(), {
         glob: '**/*.md',
         search: 'dogs',
         replace: 'cats'
       });
 
+      let fileForChange = path.join(input.path(), 'a', 'README.md');
+      const output = createBuilder(subject);
+      yield output.build();
+      input.write({
+        a: {
+          'README.md': 'such changes'
+        }
+      });
+      yield output.build();
       expect(file(fileForChange)).to.exist;
 
       write(fileForChange, 'such changes');
 
       expect(file(fileForChange)).to.exist;
 
-      results = yield results.builder();
+      yield output.build();
 
       expect(file(fileForChange)).to.exist;
 
@@ -708,38 +728,43 @@ describe('Filter', function() {
     }));
 
     it('replaces stale entries - async', co.wrap(function* () {
-      let subject = new ReplaceAsyncFilter(fixturePath('a'), {
+      let subject = new ReplaceAsyncFilter(input.path(), {
         glob: '**/*.md',
         search: 'cats',
         replace: 'dogs',
         async: true,
       });
+      let fileForChange = path.join(input.path(), 'a', 'README.md');
       let output = createBuilder(subject);
 
       yield output.build();
 
-      expect(file(output.builder.outputPath + '/dir/a/README.md')).to.equal('Nicest dogs in need of homes');
+      expect(output.readText('/a/README.md')).to.equal('Nicest dogs in need of homes');
 
       expect(file(fileForChange)).to.exist;
 
-      write(fileForChange, 'such changes');
+      input.write({
+        a: {
+          'README.md': 'such changes'
+        }
+      });
 
       expect(file(fileForChange)).to.exist;
 
       yield output.build();
 
-      expect(file(output.builder.outputPath + '/dir/a/README.md')).to.equal('such changes');
+      expect(output.readText('/a/README.md')).to.equal('such changes');
     }));
 
 
   });
 
   it('does not overwrite core options if they are not present', function() {
-    function F(inputTree, options) {
-      Filter.call(this, inputTree, options);
+    class F extends Filter{
+      constructor(inputTree, options) {
+        super(inputTree, options);
+      }
     }
-
-    inherits(F, Filter);
 
     F.prototype.extensions = ['js', 'rs'];
     F.prototype.targetExtension = 'glob';
@@ -769,8 +794,18 @@ describe('Filter', function() {
   });
 
   it('reports heimdall timing correctly for async work', co.wrap(function* () {
+    let input = yield createTempDir();
+    input.write({
+      a: {
+        'README.md': 'Nicest cats in need of homes',
+        bar: {
+          'bar.js': 'Dogs... who needs dogs?'
+        },
+        'foo.js': 'Nicest dogs in need of homes'
+      }
+    });
     heimdall._reset();
-    let subject = new Rot13AsyncFilter(fixturePath('a'), {
+    let subject = new Rot13AsyncFilter(input.path(), {
       targetExtension: 'foo',
       extensions: ['js', 'md'],
       async: true,
@@ -787,23 +822,34 @@ describe('Filter', function() {
   describe('persistent cache (delete process.env.CI)', function() {
     const hasCIValue = ('CI' in process.env);
     const CI_VALUE = process.env.CI;
+    let input;
 
-    function F(inputTree, options) {
-      Filter.call(this, inputTree, options);
+    class F extends Filter{
+      constructor (inputTree, options) {
+        super(inputTree, options);
+      }
     }
-
-    inherits(F, Filter);
 
     F.prototype.baseDir = function() {
       return path.join(__dirname, '../');
     };
 
-    beforeEach(function() {
+    beforeEach(co.wrap(function* () {
       delete process.env.CI;
       this.originalCacheRoot = process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
-    });
+      input = yield createTempDir();
+      input.write({
+        a: {
+          'README.md': 'Nicest cats in need of homes',
+          bar: {
+            'bar.js': 'Dogs... who needs dogs?'
+          },
+          'foo.js': 'Nicest dogs in need of homes'
+        }
+      });
+    }));
 
-    afterEach(function() {
+    afterEach(co.wrap(function* () {
       if (hasCIValue) {
         process.env.CI = CI_VALUE;
       } else{
@@ -815,23 +861,25 @@ describe('Filter', function() {
       } else {
         delete process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
       }
-    });
+      yield input.dispose();
+    }));
 
     it('initializes cache', function() {
       this.timeout(15*1000); // takes >5s when run with node 0.12
-      let f = new F(fixturePath('a'), {
+      let f = new F(input.path(), {
         persist: true
       });
 
       // TODO: we should just deal in observable differences, not reaching into private state
       expect(f.processor.processor._cache).to.be.ok;
+
     });
 
     it('initializes cache using ENV variable if present', function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
                                                                     'foo-bar-baz-testing-123');
 
-      let f = new F(fixturePath('a'), {
+      let f = new F(input.path(), {
         persist: true
       });
 
@@ -842,118 +890,181 @@ describe('Filter', function() {
 
     it('throws an UnimplementedException if the abstract `baseDir` implementation is used', function() {
 
-      function F(inputTree, options) {
-        Filter.call(this, inputTree, options);
+      class F extends Filter{
+        constructor (inputTree, options) {
+          super(inputTree, options);
+        }
       }
 
-      inherits(F, Filter);
-
       expect(function() {
-        new F(fixturePath('a'), { persist: true });
+        new F(input.path(), { persist: true });
       }).to.throw(/Filter must implement prototype.baseDir/);
     });
 
     it('`cacheKeyProcessString` return correct first level file cache', function() {
-      let f = new F(fixturePath('a'), { persist: true });
+      let f = new F(input.path(), { persist: true });
 
       expect(f.cacheKeyProcessString('foo-bar-baz', 'relative-path')).
         to.eql('272ebac734fa8949ba2aa803f332ec5b');
     });
 
     it('properly reads the file tree', co.wrap(function* () {
-      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => awk);
-
-      let results = yield builder('dir', {
-        persist: true,
-        glob: '**/*.md',
-        search: 'dogs',
-        replace: 'cats'
-      });
-
-      expect(results.files).to.deep.eql([
-        'a/',
-        'a/README.md',
-        'a/bar/',
-        'a/bar/bar.js',
-        'a/foo.js'
-      ]);
+      const input = yield createTempDir();
+      try {
+        const subject = new ReplaceFilter(input.path(), {
+          persist: true,
+          glob: '**/*.md',
+          search: 'dogs',
+          replace: 'cats'
+        });
+        input.write({
+          a: {
+            'README.md': 'Nicest cats in need of homes',
+            bar: {
+              'bar.js': 'Dogs... who needs dogs?'
+            },
+            'foo.js': 'Nicest dogs in need of homes'
+          }
+        });
+        const output = createBuilder(subject);
+        try {
+          yield output.build();
+          expect(output.readDir()).to.deep.eql([
+            'a/',
+            'a/README.md',
+            'a/bar/',
+            'a/bar/bar.js',
+            'a/foo.js'
+          ]);
+        }finally {
+          yield output.dispose();
+        }
+      } finally {
+        yield input.dispose();
+      }
     }));
 
     it('calls postProcess for persistent cache hits (work is not needed)', co.wrap(function* () {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
         'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
-
-      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-        awk.postProcess = function(result) {
+      const input = yield createTempDir();
+      try {
+        let subject = new ReplaceFilter(input.path(), {
+          persist: true,
+        });
+        subject.postProcess = function(result) {
           expect(result.output).to.exist;
           return result;
         };
+        sinon.spy(subject, 'processString');
+        sinon.spy(subject, 'postProcess');
+        input.write({
+          a: {
+            'README.md': 'Nicest cats in need of homes',
+            bar: {
+              'bar.js': 'Dogs... who needs dogs?'
+            },
+            'foo.js': 'Nicest dogs in need of homes'
+          }
+        });
+        let output = createBuilder(subject);
+        try {
+          yield output.build();
+          // first time, build everything
+          expect(subject.processString.callCount).to.equal(3);
+          expect(subject.postProcess.callCount).to.equal(3);
+          subject = new ReplaceFilter(input.path(), {
+            persist: true,
+          });
+          subject.postProcess = function(result) {
+            expect(result.output).to.exist;
+            return result;
+          };
+          sinon.spy(subject, 'processString');
+          sinon.spy(subject, 'postProcess');
+          output = createBuilder(subject);
+          yield output.build();
+          expect(subject.processString.callCount).to.equal(0);
+          expect(subject.postProcess.callCount).to.equal(3);
 
-        sinon.spy(awk, 'processString');
-        sinon.spy(awk, 'postProcess');
-
-        return awk;
-      });
-
-      let results = yield builder('dir', { persist: true });
-      let awk = results.subject;
-
-      // first time, build everything
-      expect(awk.processString.callCount).to.equal(3);
-      expect(awk.postProcess.callCount).to.equal(3);
-
-      results = yield  builder('dir', { persist: true });
-      awk = results.subject;
-      // second instance, hits cache
-      expect(awk.processString.callCount).to.equal(0);
-      expect(awk.postProcess.callCount).to.equal(3);
+        }finally {
+          yield output.dispose();
+        }
+      } finally {
+        yield input.dispose();
+      }
     }));
 
     it('postProcess return value is not used', co.wrap(function* () {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
         'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
-
-      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-        awk.postProcess = function(result) {
+      const input = yield createTempDir();
+      try {
+        let subject = new ReplaceFilter(input.path(), {
+          persist: true,
+        });
+        subject.postProcess = function(result) {
           expect(result.output).to.exist;
 
           result.output = result.output + 0x00 + 'POST_PROCESSED!!';
 
           return Promise.resolve(result);
         };
-
-        return awk;
-      });
-
-      yield builder('dir', { persist: true });
-      // do nothing, just kicked off to warm the persistent cache
-      let results = yield builder('dir', { persist: true });
-      expect(file(results.directory + '/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        input.write({
+          a: {
+            'README.md': 'Nicest cats in need of homes',
+            bar: {
+              'bar.js': 'Dogs... who needs dogs?'
+            },
+            'foo.js': 'Nicest dogs in need of homes'
+          }
+        });
+        let output = createBuilder(subject);
+        try {
+          yield output.build();
+          expect(output.readText('/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
+        }finally {
+          yield output.dispose();
+        }
+      } finally {
+        yield input.dispose();
+      }
     }));
   });
 
   describe('persistent cache (process.env.CI=true)', function() {
     const hasCIValue = ('CI' in process.env);
     const CI_VALUE = process.env.CI;
+    let input;
 
-    function F(inputTree, options) {
-      Filter.call(this, inputTree, options);
+    class F extends Filter {
+      constructor(inputTree, options) {
+       super(inputTree, options);
+      }
     }
-
-    inherits(F, Filter);
 
     F.prototype.baseDir = function() {
       return path.join(__dirname, '../');
     };
 
-    beforeEach(function() {
+    beforeEach(co.wrap(function* () {
       process.env.CI = true;
       this.originalCacheRoot = process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
-    });
+      input = yield createTempDir();
+      input.write({
+        a: {
+          'README.md': 'Nicest cats in need of homes',
+          bar: {
+            'bar.js': 'Dogs... who needs dogs?'
+          },
+          'foo.js': 'Nicest dogs in need of homes'
+        }
+      });
+    }));
 
-    afterEach(function() {
+    afterEach(co.wrap(function* () {
       if (hasCIValue) {
         process.env.CI = CI_VALUE;
       } else{
@@ -965,10 +1076,11 @@ describe('Filter', function() {
       } else {
         delete process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
       }
-    });
+      yield input.dispose();
+    }));
 
     it('initializes cache', function() {
-      let f = new F(fixturePath('a'), {
+      let f = new F(input.path(), {
         persist: true
       });
 
@@ -981,30 +1093,42 @@ describe('Filter', function() {
         'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
 
-      let builder = makeBuilder(ReplaceFilter, fixturePath('a'), awk => {
-        awk.postProcess = function(result) {
-          expect(result.output).to.exist;
-          return result;
-        };
-
-        sinon.spy(awk, 'processString');
-        sinon.spy(awk, 'postProcess');
-
-        return awk;
+      let subject = new ReplaceFilter(input.path(), {
+        persist: true,
       });
-
-      let results = yield builder('dir', { persist: true });
-      let awk = results.subject;
-
+      subject.postProcess = function(result) {
+        expect(result.output).to.exist;
+        return result;
+      };
+      sinon.spy(subject, 'processString');
+      sinon.spy(subject, 'postProcess');
+      input.write({
+        a: {
+          'README.md': 'Nicest cats in need of homes',
+          bar: {
+            'bar.js': 'Dogs... who needs dogs?'
+          },
+          'foo.js': 'Nicest dogs in need of homes'
+        }
+      });
+      let output = createBuilder(subject);
+      yield output.build();
       // first time, build everything
-      expect(awk.processString.callCount).to.equal(3);
-      expect(awk.postProcess.callCount).to.equal(3);
-
-      results = yield  builder('dir', { persist: true });
-      awk = results.subject;
-      // second instance, hits cache
-      expect(awk.processString.callCount).to.equal(3);
-      expect(awk.postProcess.callCount).to.equal(3);
+      expect(subject.processString.callCount).to.equal(3);
+      expect(subject.postProcess.callCount).to.equal(3);
+      subject = new ReplaceFilter(input.path(), {
+        persist: true,
+      });
+      subject.postProcess = function(result) {
+        expect(result.output).to.exist;
+        return result;
+      };
+      sinon.spy(subject, 'processString');
+      sinon.spy(subject, 'postProcess');
+      output = createBuilder(subject);
+      yield output.build();
+      expect(subject.processString.callCount).to.equal(3);
+      yield output.dispose();
     }));
   });
 
@@ -1079,7 +1203,7 @@ describe('Filter', function() {
       Coffee.prototype.targetExtension = 'js';
       subject = new Coffee(input.path(), { async:true });
 
-      const ORIGINAL_FOO_JS = 'console.log(\'Hello, World!\')';
+      const ORIGINAL_FOO_JS = `console.log(\'Hello, World!\')`;
 
       input.write({
         'foo.js': ORIGINAL_FOO_JS
@@ -1113,13 +1237,13 @@ describe('Filter', function() {
 
     it('sets concurrency using environment variable', function() {
       process.env.JOBS = '12';
-      let filter = MyFilter('.', {});
+      let filter = new MyFilter('.', {});
       expect(filter.concurrency).to.equal(12);
     });
 
     it('sets concurrency using options.concurrency', function() {
       process.env.JOBS = '12';
-      let filter = MyFilter('.', { concurrency: 15 });
+      let filter = new MyFilter('.', { concurrency: 15 });
       expect(filter.concurrency).to.equal(15);
     });
 
@@ -1130,13 +1254,13 @@ describe('Filter', function() {
 
       it('should set to detected CPUs - 1', function() {
         sinon.stub(os, 'cpus').callsFake(() => ['cpu0', 'cpu1', 'cpu2']);
-        let filter = MyFilter('.', {});
+        let filter = new MyFilter('.', {});
         expect(filter.concurrency).to.equal(2);
       });
 
       it('should have a min of 1', function() {
         sinon.stub(os, 'cpus').callsFake(() => []);
-        let filter = MyFilter('.', {});
+        let filter = new MyFilter('.', {});
         expect(filter.concurrency).to.equal(1);
       });
     });
@@ -1154,13 +1278,12 @@ describe('Filter', function() {
       input = yield createTempDir();
       input.write({
         'dep-tracking': {
-          'has-inlines.js': '// << ./local.js\n' +
-                            '// << ../external-deps/external.js\n',
-          'local.js': 'console.log("local");\n',
-          'unrelated-file.js': 'console.log("pay me no mind.")\n'
+          'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
+          'local.js': `console.log('local');\n`,
+          'unrelated-file.js': `console.log('pay me no mind.')\n`
         },
         'external-deps': {
-          'external.js': 'console.log("external");\n'
+          'external.js': `console.log('external');\n`
         }
       });
 
@@ -1173,8 +1296,8 @@ describe('Filter', function() {
       expect(subject.processString.callCount).to.equal(3);
 
       expect(output.readText('has-inlines.js')).to.equal(
-        'console.log("local");\n'+
-        'console.log("external");\n'
+        `console.log('local');\n`+
+        `console.log('external');\n`
       );
 
       subject.processString.callCount = 0;
@@ -1186,7 +1309,7 @@ describe('Filter', function() {
 
       input.write({
         'dep-tracking': {
-          'local.js': 'console.log("local changed");\n'
+          'local.js': `console.log('local changed');\n`
         }
       });
 
@@ -1195,8 +1318,8 @@ describe('Filter', function() {
       expect(subject.processString.callCount).to.equal(2);
 
       expect(output.readText('has-inlines.js')).to.equal(
-        'console.log("local changed");\n'+
-        'console.log("external");\n'
+        `console.log('local changed');\n`+
+        `console.log('external');\n`
       );
 
       subject.processString.callCount = 0;
@@ -1204,7 +1327,7 @@ describe('Filter', function() {
       input.write({
         'dep-tracking': {
           'local.js': null,
-          'has-inlines.js': '// << ../external-deps/external.js\n',
+          'has-inlines.js': `// << ../external-deps/external.js\n`
         }
       });
 
@@ -1213,13 +1336,13 @@ describe('Filter', function() {
       // rebuild 1 files, make sure no error occurs from file deletion
       expect(subject.processString.callCount).to.equal(1);
       expect(output.readText('has-inlines.js')).to.equal(
-        'console.log("external");\n'
+        `console.log('external');\n`
       );
       subject.processString.callCount = 0;
 
       input.write({
         'external-deps': {
-          'external.js': 'console.log("external changed");\n'
+          'external.js': `console.log('external changed');\n`
         }
       });
 
@@ -1227,7 +1350,7 @@ describe('Filter', function() {
       // rebuild 1 files, make sure changes outside the tree invalidate files.
       expect(subject.processString.callCount).to.equal(1);
       expect(output.readText('has-inlines.js')).to.equal(
-        'console.log("external changed");\n'
+        `console.log('external changed');\n`
       );
     }));
     describe('and with cache persistence', function () {
@@ -1250,24 +1373,22 @@ describe('Filter', function() {
         input = yield createTempDir();
         input.write({
           'dep-tracking-1': {
-            'has-inlines.js': '// << ./local.js\n' +
-              '// << ../external-deps/external.js\n',
-            'local.js': 'console.log("local");\n',
-            'unrelated-file.js': 'console.log("pay me no mind.")\n'
+            'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
+            'local.js': `console.log('local');\n`,
+            'unrelated-file.js': `console.log('pay me no mind.')\n`
           },
           'dep-tracking-2': {
-            'has-inlines.js': '// << ./local.js\n' +
-              '// << ../external-deps/external.js\n',
-            'local.js': 'console.log("local changed");\n',
-            'unrelated-file.js': 'console.log("pay me no mind.")\n'
+            'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
+            'local.js': `console.log('local changed');\n`,
+            'unrelated-file.js': `console.log('pay me no mind.')\n`
           },
           'dep-tracking-3': {
-            'has-inlines.js': '// << ../external-deps/external.js\n',
+            'has-inlines.js': `// << ../external-deps/external.js\n`,
             'local.js': null,
-            'unrelated-file.js': 'console.log("pay me no mind.")\n'
+            'unrelated-file.js': `console.log('pay me no mind.')\n`
           },
           'external-deps': {
-            'external.js': 'console.log("external");\n'
+            'external.js': `console.log('external');\n`
           }
         });
 
@@ -1282,8 +1403,7 @@ describe('Filter', function() {
         let results = yield output.build();
         // first time, build everything
         expect(output.readText('has-inlines.js')).to.equal(
-          'console.log("local");\n' +
-          'console.log("external");\n'
+          `console.log('local');\nconsole.log('external');\n`
         );
         expect(subject.processString.callCount).to.equal(3);
 
@@ -1315,8 +1435,7 @@ describe('Filter', function() {
         expect(subject.processString.callCount).to.equal(2);
 
         expect(output.readText('has-inlines.js')).to.equal(
-          'console.log("local changed");\n' +
-          'console.log("external");\n'
+          `console.log('local changed');\nconsole.log('external');\n`
         );
 
         subject.processString.callCount = 0;
@@ -1332,7 +1451,7 @@ describe('Filter', function() {
         // rebuild 1 files, make sure no error occurs from file deletion
         expect(subject.processString.callCount).to.equal(1);
         expect(output.readText('has-inlines.js')).to.equal(
-          'console.log("external");\n'
+          `console.log('external');\n`
         );
         subject.processString.callCount = 0;
         yield output.dispose();
@@ -1345,7 +1464,7 @@ describe('Filter', function() {
 
         input.write({
           'external-deps': {
-            'external.js': 'console.log("external changed");\n'
+            'external.js': `console.log('external changed');\n`
           }
         });
 
@@ -1353,7 +1472,7 @@ describe('Filter', function() {
         // rebuild 1 files, make sure changes outside the tree invalidate files.
         expect(subject.processString.callCount).to.equal(1);
         expect(output.readText('has-inlines.js')).to.equal(
-          'console.log("external changed");\n'
+          `console.log('external changed');\n`
         );
       }));
 
@@ -1388,20 +1507,20 @@ describe('throttling', function() {
   beforeEach(co.wrap(function* () {
     input = yield createTempDir();
     input.write({
-      'index0.js': 'console.log("hi")',
-      'index1.js': 'console.log("hi")',
-      'index2.js': 'console.log("hi")',
-      'index3.js': 'console.log("hi")',
+      'index0.js': `console.log('hi')`,
+      'index1.js': `console.log('hi')`,
+      'index2.js': `console.log('hi')`,
+      'index3.js': `console.log('hi')`,
     });
   }));
 
   afterEach(co.wrap(function* () {
     delete process.env.JOBS;
     expect(output.read(), 'all files should be written').to.deep.equal({
-      'index0.js': 'console.log("hi")',
-      'index1.js': 'console.log("hi")',
-      'index2.js': 'console.log("hi")',
-      'index3.js': 'console.log("hi")',
+      'index0.js': `console.log('hi')`,
+      'index1.js': `console.log('hi')`,
+      'index2.js': `console.log('hi')`,
+      'index3.js': `console.log('hi')`,
     });
 
     yield input.dispose();
