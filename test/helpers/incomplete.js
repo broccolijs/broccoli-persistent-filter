@@ -1,11 +1,11 @@
 'use strict';
 
-var inherits = require('util').inherits;
 var Filter = require('../../');
 
-module.exports = IncompleteFilter;
-function IncompleteFilter(inputTree, options) {
-  Filter.call(this, inputTree, options);
+class IncompleteFilter extends Filter {
+  constructor(inputTree, options) {
+    super(inputTree, options);
+  }
 }
 
-inherits(IncompleteFilter, Filter);
+module.exports = IncompleteFilter;
