@@ -1,6 +1,5 @@
 language: node_js
 node_js:
-  - "lts/boron"
   - "lts/carbon"
   - "10"
 
