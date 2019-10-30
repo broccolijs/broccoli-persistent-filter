@@ -32,7 +32,7 @@
     "cache"
   ],
   "dependencies": {
-    "async-disk-cache": "^1.2.1",
+    "async-disk-cache": "^2.0.0",
     "async-promise-queue": "^1.0.3",
     "broccoli-plugin": "^1.0.0",
     "fs-tree-diff": "^2.0.0",
