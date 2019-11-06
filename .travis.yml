@@ -1,8 +1,8 @@
 language: node_js
 node_js:
-  - "lts/boron"
   - "lts/carbon"
   - "10"
+  - "12"
 
 sudo: false
 dist: trusty
