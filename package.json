@@ -32,7 +32,7 @@
     "cache"
   ],
   "dependencies": {
-    "async-disk-cache": "^1.2.1",
+    "async-disk-cache": "^2.0.0",
     "async-promise-queue": "^1.0.3",
     "broccoli-plugin": "^3.0.1",
     "fs-tree-diff": "^2.0.0",
@@ -41,11 +41,10 @@
     "heimdalljs-logger": "^0.1.7",
     "mkdirp": "^0.5.1",
     "promise-map-series": "^0.2.1",
-    "rimraf": "^2.6.1",
-    "rsvp": "^4.7.0",
+    "rimraf": "^3.0.0",
     "symlink-or-copy": "^1.0.1",
     "sync-disk-cache": "^2.0.0",
-    "walk-sync": "^1.0.0"
+    "walk-sync": "^2.0.2"
   },
   "devDependencies": {
     "broccoli-test-helper": "^2.0.0",
@@ -53,12 +52,12 @@
     "chai-as-promised": "^7.1.1",
     "chai-files": "^1.4.0",
     "co": "^4.6.0",
-    "coveralls": "^3.0.0",
+    "coveralls": "^3.0.9",
     "istanbul": "^0.4.2",
     "minimatch": "^3.0.2",
-    "mocha": "^6.0.0",
+    "mocha": "^6.2.2",
     "mocha-jshint": "^2.3.1",
-    "sinon": "^7.2.4",
+    "sinon": "^7.5.0",
     "sinon-chai": "^3.1.0"
   },
   "engines": {

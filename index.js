@@ -157,7 +157,7 @@ module.exports = class Filter extends Plugin {
     this._outputLinks = Object.create(null);
   }
 
-  build() {
+  async build() {
     // @ts-ignore
     let srcDir = this.inputPaths[0];
     // @ts-ignore
@@ -233,9 +233,9 @@ module.exports = class Filter extends Plugin {
     // used with options.async = true to allow 'create' and 'change' operations to complete async
     const pendingWork = [];
     // @ts-ignore
-    return heimdall.node('applyPatches', ApplyPatchesSchema, instrumentation => {
+    return heimdall.node('applyPatches', ApplyPatchesSchema, async instrumentation => {
       let prevTime = process.hrtime();
-      return mapSeries(patches, patch => {
+      await mapSeries(patches, patch => {
         let operation = patch[0];
         let relativePath = patch[1];
         let entry = patch[2];
@@ -281,16 +281,14 @@ module.exports = class Filter extends Plugin {
             instrumentation.other++;
           }
         }
-      }).then(() => {
-        return queue(worker, pendingWork, this.concurrency);
-      }).then((result) => {
-        this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
-        if (this.dependencies) {
-          this.processor.sealDependencies(this.dependencies);
-        }
-        this._needsReset = false;
-        return result;
       });
+      const result = await queue(worker, pendingWork, this.concurrency);
+      this._logger.info('applyPatches', 'duration:', timeSince(prevTime), JSON.stringify(instrumentation));
+      if (this.dependencies) {
+        this.processor.sealDependencies(this.dependencies);
+      }
+      this._needsReset = false;
+      return result;
     });
   }
 
@@ -318,8 +316,6 @@ module.exports = class Filter extends Plugin {
         this._outputLinks[outputPath] = true;
       }
       return result;
-    } catch(error) {
-      throw error;
     } finally {
       stats.handleFileTime += nanosecondsSince(handleFileStart);
     }
