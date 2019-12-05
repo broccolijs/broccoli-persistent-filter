@@ -73,12 +73,9 @@ describe('Filter', function() {
       });
     });
 
-    afterEach(co.wrap(function* () {
-      yield input.dispose();
-      if (output) {
-        yield output.dispose();
-      }
-    }));
+    afterEach(async function() {
+      await input.dispose();
+    });
 
     it('throws if base Filter class is new-ed', function() {
       expect(() => new Filter(input.path())).to.throw(TypeError, /rather is intended to be sub-classed/);
@@ -88,54 +85,54 @@ describe('Filter', function() {
       expect(() => new IncompleteFilter(input.path()).processString('foo', 'fake_path')).to.throw(Error, /must implement/);
     });
 
-    it('processes files with extensions included in `extensions` list by default', co.wrap(function* () {
+    it('processes files with extensions included in `extensions` list by default', async function () {
      let filter = new MyFilter(input.path(), { extensions: ['c', 'cc', 'js']});
 
      output = createBuilder(filter);
-     yield output.build();
+     await output.build();
 
       expect(filter.canProcessFile('foo.c')).to.equal(true);
       expect(filter.canProcessFile('test.js')).to.equal(true);
       expect(filter.canProcessFile('blob.cc')).to.equal(true);
       expect(filter.canProcessFile('twerp.rs')).to.equal(false);
-    }));
+    });
 
-    it('getDestFilePath returns null for directories when extensions is null', co.wrap(function* () {
+    it('getDestFilePath returns null for directories when extensions is null', async function () {
       let inputPath = input.path();
       let filter = new MyFilter(inputPath, { extensions: null });
 
       output = createBuilder(filter);
-      yield output.build();
+      await output.build();
 
       expect(filter.getDestFilePath('a/bar')).to.equal(null);
       expect(filter.getDestFilePath('a/bar/bar.js')).to.equal('a/bar/bar.js');
-    }));
+    });
 
-    it('getDestFilePath returns null for directories with matching extensions', co.wrap(function* () {
+    it('getDestFilePath returns null for directories with matching extensions', async function () {
       let inputPath = path.join(input.path(), 'dir-with-extensions');
       let filter = new MyFilter(inputPath, { extensions: ['js'] });
 
       output = createBuilder(filter);
-      yield output.build();
+      await output.build();
 
       expect(filter.getDestFilePath('a/loader.js')).to.equal(null);
       expect(filter.getDestFilePath('a/loader.js/loader.js')).to.equal('a/loader.js/loader.js');
-    }));
+    });
 
-    it('replaces matched extension with targetExtension by default', co.wrap(function* () {
+    it('replaces matched extension with targetExtension by default', async function () {
       let filter = new MyFilter(input.path(), {
         extensions: ['c', 'cc', 'js'],
         targetExtension: 'zebra'
       });
 
       output = createBuilder(filter);
-      yield output.build();
+      await output.build();
 
       expect(filter.getDestFilePath('foo.c')).to.equal('foo.zebra');
       expect(filter.getDestFilePath('test.js')).to.equal('test.zebra');
       expect(filter.getDestFilePath('blob.cc')).to.equal('blob.zebra');
       expect(filter.getDestFilePath('twerp.rs')).to.equal(null);
-    }));
+    });
   });
 
   describe('on rebuild', function() {

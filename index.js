@@ -471,11 +471,11 @@ module.exports = class Filter extends Plugin {
   }
 
   /**
-   * @param _contents {string}
-   * @param _relativePath {string}
+   * @param contents {string}
+   * @param relativePath {string}
    * @returns {string}
    */
-  processString(_contents, _relativePath) {
+  processString(contents, relativePath) { // jshint ignore:line
     throw new Error(
         '[BroccoliPersistentFilter] When subclassing broccoli-persistent-filter you must implement the ' +
         '`processString()` method.');
