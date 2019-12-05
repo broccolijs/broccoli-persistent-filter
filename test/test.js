@@ -81,7 +81,7 @@ describe('Filter', function() {
     }));
 
     it('throws if base Filter class is new-ed', function() {
-      expect(() => new Filter(input.path())).to.throw(TypeError, /abstract class and must be sub-classed/);
+      expect(() => new Filter(input.path())).to.throw(TypeError, /rather is intended to be sub-classed/);
     });
 
     it('throws if `processString` is not implemented', function() {

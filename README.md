@@ -102,8 +102,7 @@ instead of being passed into the constructor.
 const Filter = require('broccoli-persistent-filter');
 
 class Awk extends Filter {
-  constructor(inputNode, search, replace, options) {
-    options = options || {};
+  constructor(inputNode, search, replace, options = {}) {
     super(inputNode, {
       annotation: options.annotation
     });
@@ -114,7 +113,7 @@ class Awk extends Filter {
   }
   processString(content, relativePath) {
     return content.replace(this.search, this.replace);
-  };
+  }
 }
 ```
 

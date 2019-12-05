@@ -5,7 +5,6 @@ const fs = require('fs');
 const path = require('path');
 const mkdirp = require('mkdirp');
 const rimraf = require('rimraf');
-const Promise = require('rsvp').Promise;
 const Plugin = require('broccoli-plugin');
 const walkSync = require('walk-sync');
 const mapSeries = require('promise-map-series');
@@ -88,13 +87,11 @@ function invalidationsAsPatches(invalidated, currentTree, nextTree) {
   return patches;
 }
 
-function invoke(context, fn, args) {
-  return new Promise(resolve => {
-    resolve(fn.apply(context, args));
-  });
+async function invoke(context, fn, args) {
+  return await fn.apply(context, args);
 }
 
-class Filter extends Plugin {
+module.exports = class Filter extends Plugin {
   static shouldPersist(env, persist) {
     let result;
 
@@ -107,14 +104,15 @@ class Filter extends Plugin {
     return !!result;
   }
 
-  constructor (inputTree, options) {
+  constructor(inputTree, options) {
     super([inputTree], {
       name: (options && options.name),
       annotation: (options && options.annotation),
       persistentOutput: true
     });
-    if (!(this instanceof Filter) || Object.getPrototypeOf(this) === Filter.prototype) {
-      throw new TypeError('Filter is an abstract class and must be sub-classed');
+
+    if (Object.getPrototypeOf(this) === Filter.prototype) {
+      throw new TypeError('[BroccoliPersistentFilter] BroccoliPersistentFilter Is an abstract class, and cannot be instantiated directly, rather is intended to be sub-classed');
     }
 
     let loggerName = 'broccoli-persistent-filter:' + (this.constructor.name);
@@ -226,7 +224,7 @@ class Filter extends Plugin {
 
     if (patches.length === 0) {
       // no work, exit early
-      return Promise.resolve();
+      return;
     } else {
       // do actual work, that may fail
       this._needsReset = true;
@@ -296,12 +294,11 @@ class Filter extends Plugin {
     });
   }
 
-  _handleFile (relativePath, srcDir, destDir, entry, outputPath, forceInvalidation, isChange, stats) {
+  async _handleFile(relativePath, srcDir, destDir, entry, outputPath, forceInvalidation, isChange, stats) {
     stats.handleFile++;
 
     let handleFileStart = process.hrtime();
-
-    return new Promise(resolve => {
+    try {
       let result;
       let srcPath = srcDir + '/' + relativePath;
 
@@ -311,7 +308,7 @@ class Filter extends Plugin {
           delete this._outputLinks[outputPath];
           fs.unlinkSync(outputPath);
         }
-        result = this.processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, stats);
+        result = await this.processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, stats);
       } else {
         stats.linked++;
         if (isChange) {
@@ -320,14 +317,12 @@ class Filter extends Plugin {
         result = symlinkOrCopySync(srcPath, outputPath);
         this._outputLinks[outputPath] = true;
       }
-      resolve(result);
-    }).then(val => {
+      return result;
+    } catch(error) {
+      throw error;
+    } finally {
       stats.handleFileTime += nanosecondsSince(handleFileStart);
-      return val;
-    }, err => {
-      stats.handleFileTime += nanosecondsSince(handleFileStart);
-      throw err;
-    });
+    }
   }
 
   /*
@@ -351,7 +346,7 @@ class Filter extends Plugin {
  * @returns {String} absolute path to the root of the filter...
  */
   baseDir() {
-    throw Error('Filter must implement prototype.baseDir');
+    throw Error('[BroccoliPersistentFilter] Filter must implement prototype.baseDir');
   }
 
   /**
@@ -361,7 +356,7 @@ class Filter extends Plugin {
    * @param  {String} string The contents of a file that is being processed
    * @return {String}        A cache key
    */
-  cacheKeyProcessString (string, relativePath) {
+  cacheKeyProcessString(string, relativePath) {
     return md5Hex(string + 0x00 + relativePath);
   }
 
@@ -369,7 +364,7 @@ class Filter extends Plugin {
     return !!this.getDestFilePath(relativePath, entry);
   }
 
-  isDirectory (relativePath, entry) {
+  isDirectory(relativePath, entry) {
     // @ts-ignore
     if (this.inputPaths === undefined) {
       return false;
@@ -382,7 +377,7 @@ class Filter extends Plugin {
     return (entry || fs.lstatSync(path)).isDirectory();
   }
 
-  getDestFilePath (relativePath, entry) {
+  getDestFilePath(relativePath, entry) {
     // NOTE: relativePath may have been moved or unlinked
     if (this.isDirectory(relativePath, entry)) {
       return null;
@@ -405,27 +400,21 @@ class Filter extends Plugin {
     return null;
   }
 
-  processAndCacheFile (srcDir, destDir, entry, forceInvalidation, isChange, instrumentation) {
+  async processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, instrumentation) {
     let filter = this;
     let relativePath = entry.relativePath;
-
-    return Promise.resolve().
-      then(() => {
-        return filter.processFile(srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry);
-      }).
-      then(undefined,
-        // TODO(@caitp): error wrapper is for API compat, but is not particularly
-        // useful.
-        // istanbul ignore next
-        e => {
-          if (typeof e !== 'object') e = new Error('' + e);
-          e.file = relativePath;
-          e.treeDir = srcDir;
-          throw e;
-        });
+    try {
+      return await filter.processFile(srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry);
+    } catch (e) {
+      let error = e;
+      if (typeof e !== 'object') error = new Error('' + e);
+      error.file = relativePath;
+      error.treeDir = srcDir;
+      throw error;
+    }
   }
 
-  processFile (srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry) {
+  async processFile(srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry) {
     let filter = this;
     let inputEncoding = this.inputEncoding;
     let outputEncoding = this.outputEncoding;
@@ -439,45 +428,46 @@ class Filter extends Plugin {
 
     instrumentation.processString++;
     let processStringStart = process.hrtime();
-    let string = invoke(this.processor, this.processor.processString, [this, contents, relativePath, forceInvalidation, instrumentation]);
+    let outputString = await invoke(this.processor, this.processor.processString, [this, contents, relativePath, forceInvalidation, instrumentation]);
+    instrumentation.processStringTime += nanosecondsSince(processStringStart);
+    let outputPath = filter.getDestFilePath(relativePath, entry);
 
-    return string.then(outputString => {
-      instrumentation.processStringTime += nanosecondsSince(processStringStart);
-      let outputPath = filter.getDestFilePath(relativePath, entry);
+    if (outputPath == null) {
+      throw new Error('[BroccoliPersistentFilter] canProcessFile("' + relativePath +
+                      '") is true, but getDestFilePath("' +
+                      relativePath + '") is null');
+    }
 
-      if (outputPath == null) {
-        throw new Error('canProcessFile("' + relativePath +
-                        '") is true, but getDestFilePath("' +
-                        relativePath + '") is null');
+    outputPath = destDir + '/' + outputPath;
+
+    if (isChange) {
+      let isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
+      if (isSame) {
+        this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
+        return;
+      } else {
+        this._logger.debug('[change:%s] but was NOT the same, writing new file', relativePath);
       }
+    }
 
-      outputPath = destDir + '/' + outputPath;
+    try {
+      fs.writeFileSync(outputPath, outputString, {
+        encoding: outputEncoding
+      });
 
-      if (isChange) {
-        let isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
-        if (isSame) {
-          this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
-          return;
-        } else {
-          this._logger.debug('[change:%s] but was NOT the same, writing new file', relativePath);
-        }
-      }
-
-      try {
-        fs.writeFileSync(outputPath, outputString, {
-          encoding: outputEncoding
-        });
-
-      } catch(e) {
-        // optimistically assume the DIR was patched correctly
+    } catch (e) {
+      if (e !== null && typeof e === 'object' && e.code === 'ENOENT') {
         mkdirp.sync(path.dirname(outputPath));
         fs.writeFileSync(outputPath, outputString, {
           encoding: outputEncoding
         });
+      } else {
+        // unexpected error, simply re-throw;
+        throw e;
       }
+    }
 
-      return outputString;
-    });
+    return outputString;
   }
 
   /**
@@ -485,15 +475,13 @@ class Filter extends Plugin {
    * @param relativePath {string}
    * @returns {string}
    */
-  processString (contents, relativePath) { // jshint ignore:line
+  processString(contents, relativePath) { // jshint ignore:line
     throw new Error(
-        'When subclassing broccoli-persistent-filter you must implement the ' +
+        '[BroccoliPersistentFilter] When subclassing broccoli-persistent-filter you must implement the ' +
         '`processString()` method.');
   }
 
-  postProcess (result /*, relativePath */) {
+  postProcess(result /*, relativePath */) {
     return result;
   }
-}
-
-module.exports = Filter;
+};
