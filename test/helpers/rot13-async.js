@@ -5,10 +5,6 @@ const Filter = require('../../');
 
 
 module.exports = class Rot13Async extends Filter {
-  constructor(inputTree, options) {
-    super(inputTree, options);
-  }
-
   processString(content) {
     return new Promise((resolve) => {
       const result = content.replace(/[a-zA-Z]/g, (c) => {

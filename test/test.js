@@ -5,7 +5,6 @@ const chaiAsPromised = require('chai-as-promised');
 const sinonChai = require('sinon-chai');
 const chaiFiles = require('chai-files');
 const file = chaiFiles.file;
-const co = require('co');
 const heimdall = require('heimdalljs');
 
 const { createBuilder, createTempDir } = require('broccoli-test-helper');
@@ -50,8 +49,8 @@ describe('Filter', function() {
   describe('basic smoke test', function () {
     let input;
 
-    beforeEach(co.wrap(function* () {
-      input = yield createTempDir();
+    beforeEach(async function() {
+      input = await createTempDir();
       input.write({
         'a': {
           'README.md': 'Nicest cats in need of homes',
@@ -68,11 +67,11 @@ describe('Filter', function() {
           }
         }
       });
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
-      yield input.dispose();
-    }));
+    afterEach(async function() {
+      await input.dispose();
+    });
 
     it('throws if base Filter class is new-ed', function() {
       expect(() => new Filter('.')).to.throw(TypeError, /abstract class and must be sub-classed/);
@@ -125,8 +124,8 @@ describe('Filter', function() {
   describe('on rebuild', function() {
     let input, subject, output;
 
-    beforeEach(co.wrap(function* () {
-      input = yield createTempDir();
+    beforeEach(async function() {
+      input = await createTempDir();
       input.write({
         'a': {
           'README.md': 'Nicest cats in need of homes',
@@ -140,16 +139,16 @@ describe('Filter', function() {
       sinon.spy(subject, 'processString');
       sinon.spy(subject, 'postProcess');
       output = createBuilder(subject);
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
-      yield input.dispose();
-      yield output.dispose();
-    }));
+    afterEach(async function() {
+      await input.dispose();
+      await output.dispose();
+    });
 
-    it('calls processString a if work is needed', co.wrap(function* () {
+    it('calls processString a if work is needed', async function() {
 
-      yield output.build();
+      await output.build();
       // first time, build everything
       expect(subject.processString.callCount).to.equal(3);
       expect(subject.postProcess.callCount).to.equal(3);
@@ -157,7 +156,7 @@ describe('Filter', function() {
       subject.processString.callCount = 0;
       subject.postProcess.callCount = 0;
 
-      yield output.build();
+      await output.build();
 
       // rebuild, but no changes (build nothing);
       expect(subject.processString.callCount).to.equal(0);
@@ -169,7 +168,7 @@ describe('Filter', function() {
         }
       });
 
-      yield output.build();
+      await output.build();
       // rebuild 1 file
       expect(subject.processString.callCount).to.equal(1);
       expect(subject.postProcess.callCount).to.equal(1);
@@ -181,11 +180,11 @@ describe('Filter', function() {
         'a': { 'README.md': null }
       });
 
-      yield output.build();
+      await output.build();
       // rebuild 0 files
       expect(subject.processString.callCount).to.equal(0);
       expect(subject.postProcess.callCount).to.equal(0);
-    }));
+    });
 
     describe('mid build failure', function() {
       let input;
@@ -208,25 +207,25 @@ describe('Filter', function() {
         return content;
       };
 
-      beforeEach(co.wrap(function* () {
-        input = yield createTempDir();
+      beforeEach(async function() {
+        input = await createTempDir();
         subject = new Plugin(input.path());
         output = createBuilder(subject);
-      }));
+      });
 
-      afterEach(co.wrap(function* () {
-        yield input.dispose();
-        yield output.dispose();
-      }));
+      afterEach(async function() {
+        await input.dispose();
+        await output.dispose();
+      });
 
-      it('works', co.wrap(function* () {
+      it('works', async function() {
         input.write({
           'index.js': `console.log('hi')`
         });
 
         let didFail = false;
         try {
-          yield output.build();
+          await output.build();
         } catch(error) {
           didFail = true;
           expect(error.message).to.contain('first build happens to fail');
@@ -234,12 +233,12 @@ describe('Filter', function() {
         expect(didFail).to.eql(true);
         expect(output.read(), 'to be empty').to.deep.equal({});
 
-        yield output.build();
+        await output.build();
 
         expect(output.read(), 'to no long be empty').to.deep.equal({
           'index.js': `console.log('hi')`
         });
-      }));
+      });
     });
 
     describe('build failures - async', function() {
@@ -272,20 +271,20 @@ describe('Filter', function() {
         }
       }
 
-      beforeEach(co.wrap(function* () {
+      beforeEach(async function() {
         process.env.JOBS = '4';
-        input = yield createTempDir();
+        input = await createTempDir();
         subject = new Plugin(input.path(), { async:true });
         output = createBuilder(subject);
-      }));
+      });
 
-      afterEach(co.wrap(function* () {
+      afterEach(async function() {
         delete process.env.JOBS;
-        yield input.dispose();
-        yield output.dispose();
-      }));
+        await input.dispose();
+        await output.dispose();
+      });
 
-      it('completes all pending work before returning', co.wrap(function* () {
+      it('completes all pending work before returning', async function() {
         input.write({
           'index0.js': `console.log('hi')`,
           'index1.js': `console.log('hi')`,
@@ -295,7 +294,7 @@ describe('Filter', function() {
 
         let didFail = false;
         try {
-          yield output.build();
+          await output.build();
         } catch(error) {
           didFail = true;
           expect(error.message).to.contain('file failed for some reason', 'error message text should match');
@@ -305,10 +304,10 @@ describe('Filter', function() {
           'index1.js': `console.log('hi')`,
           'index3.js': `console.log('hi')`,
         });
-      }));
+      });
     });
 
-    it('calls processString if work is needed', co.wrap(function* () {
+    it('calls processString if work is needed', async function() {
       const subject = new Rot13Filter(input.path(), {
         extensions: ['js'],
         targetExtension: 'OMG'
@@ -317,7 +316,7 @@ describe('Filter', function() {
       sinon.spy(subject, 'processString');
       output = createBuilder(subject);
 
-      yield output.build();
+      await output.build();
 
       // first time, build everything
       expect(subject.processString.callCount).to.equal(2);
@@ -330,7 +329,7 @@ describe('Filter', function() {
         'a/foo.OMG': 'create'
       });
 
-      yield output.build();
+      await output.build();
 
       // rebuild, but no changes (build nothing);
       expect(subject.processString.callCount).to.equal(0);
@@ -341,7 +340,7 @@ describe('Filter', function() {
         }
       });
 
-      yield output.build();
+      await output.build();
 
       // rebuild 0 files, changed file does not match extensions
       expect(subject.processString.callCount).to.equal(0);
@@ -352,7 +351,7 @@ describe('Filter', function() {
         }
       });
 
-      yield output.build();
+      await output.build();
 
       // rebuild 0 files
       expect(subject.processString.callCount).to.equal(0);
@@ -362,7 +361,7 @@ describe('Filter', function() {
         }
       });
 
-      yield output.build();
+      await output.build();
 
       // rebuild, but no changes (build nothing);
       expect(subject.processString.callCount).to.equal(0);
@@ -373,7 +372,7 @@ describe('Filter', function() {
         }
       });
 
-      yield output.build();
+      await output.build();
 
       // rebuild, but no changes (build nothing);
       expect(subject.processString.callCount).to.equal(1);
@@ -386,9 +385,9 @@ describe('Filter', function() {
         },
         'fooo': {}
       });
-    }));
+    });
 
-    it('handles renames', co.wrap(function* () {
+    it('handles renames', async function() {
       const subject = new Rot13Filter(input.path(), {
         extensions: ['md'],
         targetExtension: ['foo.md']
@@ -396,7 +395,7 @@ describe('Filter', function() {
 
       sinon.spy(subject, 'processString');
       output = createBuilder(subject);
-      yield output.build();
+      await output.build();
 
       // first time, build everything
       expect(subject.processString.callCount).to.equal(1);
@@ -408,7 +407,7 @@ describe('Filter', function() {
         }
       });
 
-      yield output.build();
+      await output.build();
 
       expect(output.readDir()).to.eql([
         'a/',
@@ -417,9 +416,9 @@ describe('Filter', function() {
         'a/bar/bar.js',
         'a/foo.js'
       ]);
-    }));
+    });
 
-    it('preserves mtimes if neither content did not actually change', co.wrap(function* () {
+    it('preserves mtimes if neither content did not actually change', async function() {
       subject = new Rot13Filter(input.path(), {
         extensions: ['md']
       });
@@ -427,7 +426,7 @@ describe('Filter', function() {
       output = createBuilder(subject);
       let stat;
       let filePath;
-      yield output.build();
+      await output.build();
       // first time, build everything
       expect(subject.processString.callCount).to.equal(1);
       subject.processString.callCount = 0;
@@ -436,7 +435,7 @@ describe('Filter', function() {
       fs.writeFileSync(filePath, fs.readFileSync(filePath));
       stat = fs.statSync(filePath);
 
-      yield output.build();
+      await output.build();
 
       let afterRebuildStat = fs.statSync(filePath);
 
@@ -448,14 +447,14 @@ describe('Filter', function() {
       expect(stat.mode).to.equal(afterRebuildStat.mode);
       expect(stat.size).to.equal(afterRebuildStat.size);
       expect(stat.mtime.getTime()).to.equal(afterRebuildStat.mtime.getTime());
-    }));
+    });
   });
 
   describe(`targetExtension`, function () {
     let input, subject, output;
 
-    beforeEach(co.wrap(function* () {
-      input = yield createTempDir();
+    beforeEach(async function() {
+      input = await createTempDir();
       input.write({
         a: {
           'README.md': 'Nicest cats in need of homes',
@@ -469,26 +468,26 @@ describe('Filter', function() {
       sinon.spy(subject, 'processString');
       sinon.spy(subject, 'postProcess');
       output = createBuilder(subject);
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
-      yield input.dispose();
-      yield output.dispose();
-    }));
-    it('targetExtension work for no extensions', co.wrap(function* () {
+    afterEach(async function() {
+      await input.dispose();
+      await output.dispose();
+    });
+    it('targetExtension work for no extensions', async function() {
       const subject = new Rot13Filter(input.path(), {
         targetExtension: 'foo',
         extensions: []
       });
       sinon.spy(subject, 'processString');
       output = createBuilder(subject);
-      yield output.build();
+      await output.build();
       expect(output.readText('a/README.md')).to.be.equal('Nicest cats in need of homes');
       expect(output.readText('a/foo.js')).to.be.equal('Nicest dogs in need of homes');
       expect(subject.processString.callCount).to.equal(0);
-    }));
+    });
 
-    it('targetExtension work for single extensions', co.wrap(function* () {
+    it('targetExtension work for single extensions', async function() {
       const subject = new Rot13Filter(input.path(), {
         targetExtension: 'foo',
         extensions: ['js']
@@ -496,15 +495,15 @@ describe('Filter', function() {
 
       sinon.spy(subject, 'processString');
       output = createBuilder(subject);
-      yield output.build();
+      await output.build();
 
       expect(output.readText('a/README.md')).to.equal('Nicest cats in need of homes');
       expect(output.readText('a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
       expect(subject.processString.callCount).to.equal(2);
 
-    }));
+    });
 
-    it('targetExtension work for multiple extensions', co.wrap(function* () {
+    it('targetExtension work for multiple extensions', async function() {
       const subject = new Rot13Filter(input.path(), {
         targetExtension: 'foo',
         extensions: ['js','md']
@@ -512,14 +511,14 @@ describe('Filter', function() {
 
       sinon.spy(subject, 'processString');
       output = createBuilder(subject);
-      yield output.build();
+      await output.build();
 
       expect(output.readText('/a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
       expect(output.readText('/a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
       expect(subject.processString.callCount).to.equal(3);
-    }));
+    });
 
-    it('targetExtension work for multiple extensions - async', co.wrap(function* () {
+    it('targetExtension work for multiple extensions - async', async function() {
       this.timeout(30*1000); // takes >10s when run with node 0.12
       let subject = new Rot13AsyncFilter(input.path(), {
         targetExtension: 'foo',
@@ -528,16 +527,16 @@ describe('Filter', function() {
       });
       let output = createBuilder(subject);
 
-      yield output.build();
+      await output.build();
 
       expect(output.readText('a/README.foo')).to.equal('Avprfg pngf va arrq bs ubzrf');
       expect(output.readText('a/foo.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
-    }));
+    });
 
   });
 
-  it('handles directories that older versions of walkSync do not sort lexicographically', co.wrap(function* () {
-    let input = yield createTempDir();
+  it('handles directories that older versions of walkSync do not sort lexicographically', async function() {
+    let input = await createTempDir();
     try {
       const subject = new Rot13Filter(input.path(), {
         targetExtension: 'foo',
@@ -554,24 +553,24 @@ describe('Filter', function() {
       sinon.spy(subject, 'processString');
       let output = createBuilder(subject);
       try {
-        yield output.build();
+        await output.build();
         expect(output.readText('/foo.md')).to.equal('Nicest dogs in need of homes');
         expect(output.readText('foo/bar.foo')).to.equal('Avprfg qbtf va arrq bs ubzrf');
 
         expect(subject.processString.callCount).to.equal(1);
       } finally {
-        yield output.dispose();
+        await output.dispose();
       }
     } finally {
-      yield input.dispose();
+      await input.dispose();
     }
-  }));
+  });
 
   describe(`processString, canPorcessFile and Purge cache`, function () {
     let input, output;
 
-    beforeEach(co.wrap(function* () {
-      input = yield createTempDir();
+    beforeEach(async function() {
+      input = await createTempDir();
       input.write({
         a: {
           'README.md': 'Nicest cats in need of homes',
@@ -581,14 +580,14 @@ describe('Filter', function() {
           'foo.js': 'Nicest dogs in need of homes'
         }
       });
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
-      yield input.dispose();
-      yield output.dispose();
-    }));
+    afterEach(async function() {
+      await input.dispose();
+      await output.dispose();
+    });
 
-    it('should processString when canProcessFile returns true', co.wrap(function* () {
+    it('should processString when canProcessFile returns true', async function() {
       const subject = new ReplaceFilter(input.path(), {
         glob: '**/*.md',
         search: 'dogs',
@@ -597,13 +596,13 @@ describe('Filter', function() {
       });
       sinon.spy(subject, 'processString');
       output = createBuilder(subject);
-      yield output.build();
+      await output.build();
       expect(output.readText('/a/README.md')).to.equal('Nicest cats in need of homes');
       expect(output.readText('/a/foo.js')).to.equal('Nicest dogs in need of homes');
       expect(subject.processString.callCount).to.equal(1);
-    }));
+    });
 
-    it('should processString and postProcess', co.wrap(function* () {
+    it('should processString and postProcess', async function() {
         const subject = new ReplaceFilter(input.path(), {
           search: 'dogs',
           replace: 'cats'
@@ -620,12 +619,12 @@ describe('Filter', function() {
         sinon.spy(subject, 'processString');
         sinon.spy(subject, 'postProcess');
         output = createBuilder(subject);
-        yield output.build();
+        await output.build();
         expect(output.readText('/a/README.md')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
         expect(output.readText('/a/foo.js')).to.equal('Nicest cats in need of homes' + 0x00 + 'POST_PROCESSED!!');
         expect(subject.processString.callCount).to.equal(3);
         expect(subject.postProcess.callCount).to.equal(3);
-    }));
+    });
 
     it('complains if canProcessFile is true but getDestFilePath is null', function () {
         const subject = new ReplaceFilter(input.path(), {
@@ -644,14 +643,14 @@ describe('Filter', function() {
         expect(output.build()).to.eventually.be.rejectedWith(Error, /getDestFilePath.* is null/);
     });
 
-    it('purges cache', co.wrap(function *() {
+    it('purges cache', async function() {
       const subject = new ReplaceFilter(input.path(), {
         glob: '**/*.md',
         search: 'dogs',
         replace: 'cats'
       });
       const output = createBuilder(subject);
-      yield output.build();
+      await output.build();
       input.write({
         a: {
           'README.md': null
@@ -659,7 +658,7 @@ describe('Filter', function() {
       });
       expect(input.readDir()).to.not.includes('a/README.md');
       expect(output.readDir()).to.includes('a/README.md');
-      yield output.build();
+      await output.build();
       expect(output.readDir()).to.not.includes('a/README.md');
       input.write({
         a: {
@@ -667,16 +666,16 @@ describe('Filter', function() {
         }
       });
       expect(input.readDir()).to.includes('a/README.md');
-      yield output.build();
+      await output.build();
       expect(output.readDir()).to.includes('a/foo.js');
-    }));
+    });
   });
 
   describe('stale entries', function () {
     let input, subject, output;
 
-    beforeEach(co.wrap(function* () {
-      input = yield createTempDir();
+    beforeEach(async function() {
+      input = await createTempDir();
       input.write({
         a: {
           'README.md': 'Nicest cats in need of homes',
@@ -690,13 +689,13 @@ describe('Filter', function() {
       sinon.spy(subject, 'processString');
       sinon.spy(subject, 'postProcess');
       output = createBuilder(subject);
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
-      yield input.dispose();
-      yield output.dispose();
-    }));
-    it('replaces stale entries', co.wrap(function* () {
+    afterEach(async function() {
+      await input.dispose();
+      await output.dispose();
+    });
+    it('replaces stale entries', async function() {
       const subject = new ReplaceFilter(input.path(), {
         glob: '**/*.md',
         search: 'dogs',
@@ -705,29 +704,29 @@ describe('Filter', function() {
 
       let fileForChange = path.join(input.path(), 'a', 'README.md');
       const output = createBuilder(subject);
-      yield output.build();
+      await output.build();
       input.write({
         a: {
           'README.md': 'such changes'
         }
       });
-      yield output.build();
+      await output.build();
       expect(file(fileForChange)).to.exist;
 
       write(fileForChange, 'such changes');
 
       expect(file(fileForChange)).to.exist;
 
-      yield output.build();
+      await output.build();
 
       expect(file(fileForChange)).to.exist;
 
       write(fileForChange, 'such changes');
 
       expect(file(fileForChange)).to.exist;
-    }));
+    });
 
-    it('replaces stale entries - async', co.wrap(function* () {
+    it('replaces stale entries - async', async function() {
       let subject = new ReplaceAsyncFilter(input.path(), {
         glob: '**/*.md',
         search: 'cats',
@@ -737,7 +736,7 @@ describe('Filter', function() {
       let fileForChange = path.join(input.path(), 'a', 'README.md');
       let output = createBuilder(subject);
 
-      yield output.build();
+      await output.build();
 
       expect(output.readText('/a/README.md')).to.equal('Nicest dogs in need of homes');
 
@@ -751,10 +750,10 @@ describe('Filter', function() {
 
       expect(file(fileForChange)).to.exist;
 
-      yield output.build();
+      await output.build();
 
       expect(output.readText('/a/README.md')).to.equal('such changes');
-    }));
+    });
 
 
   });
@@ -793,8 +792,8 @@ describe('Filter', function() {
     }).outputEncoding).to.equal('utf8');
   });
 
-  it('reports heimdall timing correctly for async work', co.wrap(function* () {
-    let input = yield createTempDir();
+  it('reports heimdall timing correctly for async work', async function() {
+    let input = await createTempDir();
     input.write({
       a: {
         'README.md': 'Nicest cats in need of homes',
@@ -812,12 +811,12 @@ describe('Filter', function() {
     });
     let output = createBuilder(subject);
 
-    yield output.build();
+    await output.build();
 
     var applyPatchesNode = heimdall.toJSON().nodes.filter(elem => elem.id.name === 'applyPatches')[0];
     var selfTime = applyPatchesNode.stats.time.self / (1000 * 1000); // convert to ms
     expect(selfTime).to.be.above(0, 'reported time should include the 50ms timeout in Rot13AsyncFilter');
-  }));
+  });
 
   describe('persistent cache (delete process.env.CI)', function() {
     const hasCIValue = ('CI' in process.env);
@@ -834,10 +833,10 @@ describe('Filter', function() {
       return path.join(__dirname, '../');
     };
 
-    beforeEach(co.wrap(function* () {
+    beforeEach(async function() {
       delete process.env.CI;
       this.originalCacheRoot = process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
-      input = yield createTempDir();
+      input = await createTempDir();
       input.write({
         a: {
           'README.md': 'Nicest cats in need of homes',
@@ -847,9 +846,9 @@ describe('Filter', function() {
           'foo.js': 'Nicest dogs in need of homes'
         }
       });
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
+    afterEach(async function() {
       if (hasCIValue) {
         process.env.CI = CI_VALUE;
       } else{
@@ -861,8 +860,8 @@ describe('Filter', function() {
       } else {
         delete process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
       }
-      yield input.dispose();
-    }));
+      await input.dispose();
+    });
 
     it('initializes cache', function() {
       this.timeout(15*1000); // takes >5s when run with node 0.12
@@ -908,8 +907,8 @@ describe('Filter', function() {
         to.eql('272ebac734fa8949ba2aa803f332ec5b');
     });
 
-    it('properly reads the file tree', co.wrap(function* () {
-      const input = yield createTempDir();
+    it('properly reads the file tree', async function() {
+      const input = await createTempDir();
       try {
         const subject = new ReplaceFilter(input.path(), {
           persist: true,
@@ -928,7 +927,7 @@ describe('Filter', function() {
         });
         const output = createBuilder(subject);
         try {
-          yield output.build();
+          await output.build();
           expect(output.readDir()).to.deep.eql([
             'a/',
             'a/README.md',
@@ -937,18 +936,18 @@ describe('Filter', function() {
             'a/foo.js'
           ]);
         }finally {
-          yield output.dispose();
+          await output.dispose();
         }
       } finally {
-        yield input.dispose();
+        await input.dispose();
       }
-    }));
+    });
 
-    it('calls postProcess for persistent cache hits (work is not needed)', co.wrap(function* () {
+    it('calls postProcess for persistent cache hits (work is not needed)', async function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
         'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
-      const input = yield createTempDir();
+      const input = await createTempDir();
       try {
         let subject = new ReplaceFilter(input.path(), {
           persist: true,
@@ -970,7 +969,7 @@ describe('Filter', function() {
         });
         let output = createBuilder(subject);
         try {
-          yield output.build();
+          await output.build();
           // first time, build everything
           expect(subject.processString.callCount).to.equal(3);
           expect(subject.postProcess.callCount).to.equal(3);
@@ -984,23 +983,23 @@ describe('Filter', function() {
           sinon.spy(subject, 'processString');
           sinon.spy(subject, 'postProcess');
           output = createBuilder(subject);
-          yield output.build();
+          await output.build();
           expect(subject.processString.callCount).to.equal(0);
           expect(subject.postProcess.callCount).to.equal(3);
 
         }finally {
-          yield output.dispose();
+          await output.dispose();
         }
       } finally {
-        yield input.dispose();
+        await input.dispose();
       }
-    }));
+    });
 
-    it('postProcess return value is not used', co.wrap(function* () {
+    it('postProcess return value is not used', async function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
         'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
-      const input = yield createTempDir();
+      const input = await createTempDir();
       try {
         let subject = new ReplaceFilter(input.path(), {
           persist: true,
@@ -1023,15 +1022,15 @@ describe('Filter', function() {
         });
         let output = createBuilder(subject);
         try {
-          yield output.build();
+          await output.build();
           expect(output.readText('/a/foo.js')).to.equal('Nicest dogs in need of homes' + 0x00 + 'POST_PROCESSED!!');
         }finally {
-          yield output.dispose();
+          await output.dispose();
         }
       } finally {
-        yield input.dispose();
+        await input.dispose();
       }
-    }));
+    });
   });
 
   describe('persistent cache (process.env.CI=true)', function() {
@@ -1049,10 +1048,10 @@ describe('Filter', function() {
       return path.join(__dirname, '../');
     };
 
-    beforeEach(co.wrap(function* () {
+    beforeEach(async function() {
       process.env.CI = true;
       this.originalCacheRoot = process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
-      input = yield createTempDir();
+      input = await createTempDir();
       input.write({
         a: {
           'README.md': 'Nicest cats in need of homes',
@@ -1062,9 +1061,9 @@ describe('Filter', function() {
           'foo.js': 'Nicest dogs in need of homes'
         }
       });
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
+    afterEach(async function() {
       if (hasCIValue) {
         process.env.CI = CI_VALUE;
       } else{
@@ -1076,8 +1075,8 @@ describe('Filter', function() {
       } else {
         delete process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT;
       }
-      yield input.dispose();
-    }));
+      await input.dispose();
+    });
 
     it('initializes cache', function() {
       let f = new F(input.path(), {
@@ -1088,7 +1087,7 @@ describe('Filter', function() {
       expect(f.processor.processor._cache).to.eql(undefined);
     });
 
-    it('calls postProcess for persistent cache hits (work is not needed)', co.wrap(function* () {
+    it('calls postProcess for persistent cache hits (work is not needed)', async function() {
       process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
         'process-cache-string-tests');
       rimraf(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
@@ -1112,7 +1111,7 @@ describe('Filter', function() {
         }
       });
       let output = createBuilder(subject);
-      yield output.build();
+      await output.build();
       // first time, build everything
       expect(subject.processString.callCount).to.equal(3);
       expect(subject.postProcess.callCount).to.equal(3);
@@ -1126,20 +1125,20 @@ describe('Filter', function() {
       sinon.spy(subject, 'processString');
       sinon.spy(subject, 'postProcess');
       output = createBuilder(subject);
-      yield output.build();
+      await output.build();
       expect(subject.processString.callCount).to.equal(3);
-      yield output.dispose();
-    }));
+      await output.dispose();
+    });
   });
 
   describe('processFile', function() {
     let input, subject, output;
 
-    beforeEach(co.wrap(function* () {
+    beforeEach(async function() {
       sinon.spy(fs, 'mkdirSync');
       sinon.spy(fs, 'writeFileSync');
 
-      input = yield createTempDir();
+      input = await createTempDir();
       subject = new ReplaceFilter(input.path(), {
         search: 'dogs',
         replace: 'cats'
@@ -1149,34 +1148,34 @@ describe('Filter', function() {
       sinon.spy(subject, 'postProcess');
 
       output = createBuilder(subject);
-    }));
+    });
 
-    afterEach(co.wrap(function* () {
+    afterEach(async function() {
       fs.mkdirSync.restore();
       fs.writeFileSync.restore();
 
-      yield input.dispose();
-      yield output.dispose();
-    }));
+      await input.dispose();
+      await output.dispose();
+    });
 
-    it('should work if `processString` returns a Promise', co.wrap(function* () {
+    it('should work if `processString` returns a Promise', async function() {
       input.write({
         'foo.js': 'a promise is a promise'
       });
 
-      yield output.build();
+      await output.build();
 
       expect(output.read()['foo.js']).to.equal('a promise is a promise');
-    }));
+    });
 
-    it('does not effect the current cwd', co.wrap(function* () {
+    it('does not effect the current cwd', async function() {
       input.write({
         'a': {
           'foo.js': 'Nicest dogs in need of homes'
         }
       });
 
-      yield output.build();
+      await output.build();
 
       let cwd = process.cwd();
       let a = path.join(cwd, 'a');
@@ -1187,13 +1186,13 @@ describe('Filter', function() {
       expect(fs.writeFileSync.calledWith(path.join(cwd, 'a', 'foo.js'),
         'Nicest dogs in need of homes')).to.eql(false);
 
-      yield output.build();
+      await output.build();
 
       expect(fs.writeFileSync.calledWith(path.join(cwd, 'a', 'foo.js'),
         'Nicest dogs in need of homes')).to.eql(false);
-    }));
+    });
 
-    it('does not accidentally write to symlinks it created', co.wrap(function* () {
+    it('does not accidentally write to symlinks it created', async function() {
       class Coffee extends Filter {
         processString(content) {
           return content;
@@ -1211,7 +1210,7 @@ describe('Filter', function() {
 
       output = createBuilder(subject);
 
-      yield output.build();
+      await output.build();
 
       expect(output.read()).to.eql({
         'foo.js': ORIGINAL_FOO_JS
@@ -1221,13 +1220,13 @@ describe('Filter', function() {
         'foo.coffee': '\'coffee source\''
       });
 
-      yield output.build();
+      await output.build();
 
       expect(output.read()).to.eql({
         'foo.js': '\'coffee source\''
       });
       expect(input.read()['foo.js']).to.eql(ORIGINAL_FOO_JS);
-    }));
+    });
   });
 
   describe('concurrency', function() {
@@ -1269,13 +1268,13 @@ describe('Filter', function() {
   describe('with dependency tracking', function() {
     let input, subject, output;
 
-    afterEach(co.wrap(function* () {
-      yield input.dispose();
-      yield output.dispose();
-    }));
+    afterEach(async function() {
+      await input.dispose();
+      await output.dispose();
+    });
 
-    it('calls processString if work is needed', co.wrap(function* () {
-      input = yield createTempDir();
+    it('calls processString if work is needed', async function() {
+      input = await createTempDir();
       input.write({
         'dep-tracking': {
           'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
@@ -1291,7 +1290,7 @@ describe('Filter', function() {
       sinon.spy(subject, 'processString');
       output = createBuilder(subject);
 
-      let results = yield output.build();
+      let results = await output.build();
       // first time, build everything
       expect(subject.processString.callCount).to.equal(3);
 
@@ -1302,7 +1301,7 @@ describe('Filter', function() {
 
       subject.processString.callCount = 0;
 
-      results = yield output.build();
+      results = await output.build();
 
       // rebuild, but no changes (build nothing);
       expect(subject.processString.callCount).to.equal(0);
@@ -1313,7 +1312,7 @@ describe('Filter', function() {
         }
       });
 
-      results = yield output.build();
+      results = await output.build();
       // rebuild 1 file
       expect(subject.processString.callCount).to.equal(2);
 
@@ -1332,7 +1331,7 @@ describe('Filter', function() {
       });
 
 
-      results = yield output.build();
+      results = await output.build();
       // rebuild 1 files, make sure no error occurs from file deletion
       expect(subject.processString.callCount).to.equal(1);
       expect(output.readText('has-inlines.js')).to.equal(
@@ -1346,13 +1345,13 @@ describe('Filter', function() {
         }
       });
 
-      results = yield output.build();
+      results = await output.build();
       // rebuild 1 files, make sure changes outside the tree invalidate files.
       expect(subject.processString.callCount).to.equal(1);
       expect(output.readText('has-inlines.js')).to.equal(
         `console.log('external changed');\n`
       );
-    }));
+    });
     describe('and with cache persistence', function () {
       const hasCIValue = ('CI' in process.env);
       const CI_VALUE = process.env.CI;
@@ -1369,8 +1368,8 @@ describe('Filter', function() {
         }
       });
 
-      it('calls processString if work is needed', co.wrap(function* () {
-        input = yield createTempDir();
+      it('calls processString if work is needed', async function() {
+        input = await createTempDir();
         input.write({
           'dep-tracking-1': {
             'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
@@ -1400,7 +1399,7 @@ describe('Filter', function() {
         sinon.spy(subject, 'processString');
         output = createBuilder(subject);
 
-        let results = yield output.build();
+        let results = await output.build();
         // first time, build everything
         expect(output.readText('has-inlines.js')).to.equal(
           `console.log('local');\nconsole.log('external');\n`
@@ -1409,7 +1408,7 @@ describe('Filter', function() {
 
 
         subject.processString.callCount = 0;
-        yield output.dispose();
+        await output.dispose();
 
         subject = new Inliner(path.join(input.path(), 'dep-tracking-1'), {
           persist: true
@@ -1417,12 +1416,12 @@ describe('Filter', function() {
         sinon.spy(subject, 'processString');
         output = createBuilder(subject);
 
-        results = yield output.build();
+        results = await output.build();
 
         // rebuild, but no changes (build nothing);
         expect(subject.processString.callCount).to.equal(0);
 
-        yield output.dispose();
+        await output.dispose();
 
         subject = new Inliner(path.join(input.path(), 'dep-tracking-2'), {
           persist: true
@@ -1430,7 +1429,7 @@ describe('Filter', function() {
         sinon.spy(subject, 'processString');
         output = createBuilder(subject);
 
-        results = yield output.build();
+        results = await output.build();
         // rebuild 1 file due to invalidations, one due to changes.
         expect(subject.processString.callCount).to.equal(2);
 
@@ -1439,7 +1438,7 @@ describe('Filter', function() {
         );
 
         subject.processString.callCount = 0;
-        yield output.dispose();
+        await output.dispose();
 
         subject = new Inliner(path.join(input.path(), 'dep-tracking-3'), {
           persist: true
@@ -1447,14 +1446,14 @@ describe('Filter', function() {
         sinon.spy(subject, 'processString');
         output = createBuilder(subject);
 
-        results = yield output.build();
+        results = await output.build();
         // rebuild 1 files, make sure no error occurs from file deletion
         expect(subject.processString.callCount).to.equal(1);
         expect(output.readText('has-inlines.js')).to.equal(
           `console.log('external');\n`
         );
         subject.processString.callCount = 0;
-        yield output.dispose();
+        await output.dispose();
 
         subject = new Inliner(path.join(input.path(), 'dep-tracking-3'), {
           persist: true
@@ -1468,13 +1467,13 @@ describe('Filter', function() {
           }
         });
 
-        results = yield output.build();
+        results = await output.build();
         // rebuild 1 files, make sure changes outside the tree invalidate files.
         expect(subject.processString.callCount).to.equal(1);
         expect(output.readText('has-inlines.js')).to.equal(
           `console.log('external changed');\n`
         );
-      }));
+      });
 
     });
   });
@@ -1504,17 +1503,17 @@ describe('throttling', function() {
     }
   }
 
-  beforeEach(co.wrap(function* () {
-    input = yield createTempDir();
+  beforeEach(async function() {
+    input = await createTempDir();
     input.write({
       'index0.js': `console.log('hi')`,
       'index1.js': `console.log('hi')`,
       'index2.js': `console.log('hi')`,
       'index3.js': `console.log('hi')`,
     });
-  }));
+  });
 
-  afterEach(co.wrap(function* () {
+  afterEach(async function() {
     delete process.env.JOBS;
     expect(output.read(), 'all files should be written').to.deep.equal({
       'index0.js': `console.log('hi')`,
@@ -1523,11 +1522,11 @@ describe('throttling', function() {
       'index3.js': `console.log('hi')`,
     });
 
-    yield input.dispose();
-    yield output.dispose();
-  }));
+    await input.dispose();
+    await output.dispose();
+  });
 
-  it('throttles operations to 1 concurrent job', co.wrap(function* () {
+  it('throttles operations to 1 concurrent job', async function() {
     process.env.JOBS = '1';
     subject = new Plugin(input.path(), { async:true });
     output = createBuilder(subject);
@@ -1535,12 +1534,12 @@ describe('throttling', function() {
 
     var startTime = process.hrtime();
 
-    yield output.build();
+    await output.build();
 
     expect(millisecondsSince(startTime)).to.be.above(400, '4 groups of 1 file each, taking 100ms each, should take at least 400ms');
-  }));
+  });
 
-  it('throttles operations to 2 concurrent jobs', co.wrap(function* () {
+  it('throttles operations to 2 concurrent jobs', async function() {
     process.env.JOBS = '2';
     subject = new Plugin(input.path(), { async:true });
     output = createBuilder(subject);
@@ -1548,12 +1547,12 @@ describe('throttling', function() {
 
     var startTime = process.hrtime();
 
-    yield output.build();
+    await output.build();
 
     expect(millisecondsSince(startTime)).to.be.above(200, '2 groups of 2 files each, taking 100ms each, should take at least 200ms');
-  }));
+  });
 
-  it('throttles operations to 4 concurrent jobs', co.wrap(function* () {
+  it('throttles operations to 4 concurrent jobs', async function() {
     process.env.JOBS = '4';
     subject = new Plugin(input.path(), { async:true });
     output = createBuilder(subject);
@@ -1561,11 +1560,11 @@ describe('throttling', function() {
 
     var startTime = process.hrtime();
 
-    yield output.build();
+    await output.build();
 
     expect(millisecondsSince(startTime)).to.be.above(100, '1 group of all 4 files, taking 100ms each, should take at least 100ms');
     expect(millisecondsSince(startTime)).to.be.below(200, 'all 4 jobs running concurrently in 1 group should finish in about 100ms');
-  }));
+  });
 
 });
 
