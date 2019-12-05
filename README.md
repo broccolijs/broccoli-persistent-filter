@@ -99,25 +99,22 @@ instead of being passed into the constructor.
 ### Example Usage
 
 ```js
-var Filter = require('broccoli-persistent-filter');
+const Filter = require('broccoli-persistent-filter');
 
-Awk.prototype = Object.create(Filter.prototype);
-Awk.prototype.constructor = Awk;
-function Awk(inputNode, search, replace, options) {
-  options = options || {};
-  Filter.call(this, inputNode, {
-    annotation: options.annotation
-  });
-  this.search = search;
-  this.replace = replace;
+class Awk extends Filter {
+  constructor(inputNode, search, replace, options = {}) {
+    super(inputNode, {
+      annotation: options.annotation
+    });
+    this.search = search;
+    this.replace = replace;
+    this.extensions = ['txt'];
+    this.targetExtension = 'txt';
+  }
+  processString(content, relativePath) {
+    return content.replace(this.search, this.replace);
+  }
 }
-
-Awk.prototype.extensions = ['txt'];
-Awk.prototype.targetExtension = 'txt';
-
-Awk.prototype.processString = function(content, relativePath) {
-  return content.replace(this.search, this.replace);
-};
 ```
 
 In `Brocfile.js`, use your new `Awk` plugin like so:
