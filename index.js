@@ -1,7 +1,6 @@
 // @ts-check
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
 const Plugin = require('broccoli-plugin');
 const mapSeries = require('promise-map-series');
@@ -378,12 +377,7 @@ module.exports = class Filter extends Plugin {
   }
 
   isDirectory(relativePath, entry) {
-    let fileMeta = this.fsMerger.readFileMeta(relativePath, { basePath: entry && entry.basePath });
-    // If fileMeta isn't present for a path indicates that path isn't present. We send false in this case.
-    if (!fileMeta) {
-      return false;
-    }
-    return (entry || fs.lstatSync(fileMeta.path)).isDirectory();
+    return (entry || this.fsMerger.fs.lstatSync(relativePath)).isDirectory();
   }
 
   getDestFilePath(relativePath, entry) {
