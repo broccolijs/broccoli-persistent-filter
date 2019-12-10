@@ -1491,6 +1491,136 @@ describe('Filter', function() {
 
     });
   });
+
+  describe('Takes different types input nodes', function() {
+    class TestFilter extends Filter {
+      constructor(nodes) {
+        super(nodes);
+      }
+
+      processString(content) {
+          return content.replace(/broccoli/gi, `filter`);
+      }
+    }
+
+    let input, output;
+
+    beforeEach(async function() {
+      input = await createTempDir();
+    });
+
+    afterEach(async function() {
+      await input.dispose();
+      output && await output.dispose();
+    });
+
+    it ('input node with prefix', async function() {
+      input.write({
+        'docs': {
+          'README.md': 'broccoli',
+        }
+      });
+
+      let FSMergerObjectWithPrefix = {
+        root: path.join(input.path(), 'docs'),
+        prefix: 'documents'
+      };
+
+      let subject = new TestFilter(FSMergerObjectWithPrefix);
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('documents/README.md')).to.equal('filter');
+    });
+
+    it ('input node with prefix', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;',
+        }
+      });
+
+      let FSMergerObjectWithFileDest = {
+        root: input.path(),
+        getDestinationPath:  function (relativePath) {
+          if (relativePath.includes('map.js')) {
+            return relativePath.replace('map.js', 'metal.js');
+          }
+          return relativePath;
+        }
+      };
+
+      let subject = new TestFilter(FSMergerObjectWithFileDest);
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('example/metal.js')).to.equal('let filter = 0;');
+    });
+
+    it ('input node with getDestinationPath function', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;',
+        },
+        'docs': {
+          'README.md': 'broccoli',
+        }
+      });
+
+      let FSMergerObjectWithPrefix = {
+        root: path.join(input.path(), 'docs'),
+        prefix: 'documents'
+      };
+
+      let FSMergerObjectWithFileDest = {
+        root: path.join(input.path(), 'example'),
+        getDestinationPath:  function (relativePath) {
+          if (relativePath.includes('map.js')) {
+            return relativePath.replace('map.js', 'metal.js');
+          }
+          return relativePath;
+        }
+      };
+
+      let subject = new TestFilter([FSMergerObjectWithPrefix, FSMergerObjectWithFileDest]);
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('metal.js')).to.equal('let filter = 0;');
+      expect(output.readText('documents/README.md')).to.equal('filter');
+    });
+
+    it ('input node array of strings', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;',
+        },
+        'docs': {
+          'README.md': 'broccoli',
+        }
+      });
+
+      let subject = new TestFilter([path.join(input.path(), 'docs'), path.join(input.path(), 'example')]);
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('map.js')).to.equal('let filter = 0;');
+      expect(output.readText('README.md')).to.equal('filter');
+    });
+
+    it ('input node can be broccoli node', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;\nbroccoli=1;',
+        },
+        'docs': {
+          'README.md': 'broccoli',
+        }
+      });
+
+      let subject = new TestFilter(new ReplaceFilter(input.path(), { glob: '**/*.js', search: '\n', replace: '\t' }));
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('example/map.js')).to.equal('let filter = 0;\tfilter=1;');
+      expect(output.readText('docs/README.md')).to.equal('filter');
+    });
+  });
 });
 
 describe('throttling', function() {

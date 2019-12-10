@@ -3,12 +3,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const mkdirp = require('mkdirp');
-const rimraf = require('rimraf');
 const Plugin = require('broccoli-plugin');
-const walkSync = require('walk-sync');
 const mapSeries = require('promise-map-series');
-const symlinkOrCopySync = require('symlink-or-copy').sync;
 const debugGenerator = require('heimdalljs-logger');
 const md5Hex = require('./lib/md5-hex');
 const Processor = require('./lib/processor');
@@ -18,6 +14,7 @@ const hashForDep = require('hash-for-dep');
 const FSTree = require('fs-tree-diff');
 const heimdall = require('heimdalljs');
 const queue = require('async-promise-queue');
+const FSMerger = require('fs-merger');
 
 class ApplyPatchesSchema {
   constructor() {
@@ -45,6 +42,7 @@ class DerivePatchesSchema {
     this.entries = 0;
   }
 }
+const FSMERGER = new WeakMap();
 
 const worker = queue.async.asyncify(doWork => doWork());
 
@@ -104,8 +102,19 @@ module.exports = class Filter extends Plugin {
     return !!result;
   }
 
-  constructor(inputTree, options) {
-    super([inputTree], {
+  get fsMerger() {
+    return FSMERGER.get(this).fsMerger;
+  }
+
+  constructor(inputTrees, options) {
+    // Parsed array of trees to have either broccoliNode or string which is expected by broccoli-plugin
+    let inputTreesParsed = [];
+    inputTrees = Array.isArray(inputTrees) ? inputTrees : [inputTrees];
+    inputTrees.forEach((tree) => {
+      inputTreesParsed.push(tree.root ?  tree.root : tree);
+    });
+
+    super(inputTreesParsed, {
       name: (options && options.name),
       annotation: (options && options.annotation),
       persistentOutput: true
@@ -120,6 +129,10 @@ module.exports = class Filter extends Plugin {
     if (annotation) {
       loggerName += ' > [' + annotation + ']';
     }
+
+    FSMERGER.set(this, {
+      fsMerger: new FSMerger(inputTrees)
+    });
 
     /** @type {{debug(...s: any[]): void; info(...s: any[]): void}} */
     // @ts-ignore
@@ -158,13 +171,9 @@ module.exports = class Filter extends Plugin {
   }
 
   async build() {
-    // @ts-ignore
-    let srcDir = this.inputPaths[0];
-    // @ts-ignore
-    let destDir = this.outputPath;
 
     if (this.dependencyInvalidation && !this.dependencies) {
-      this.dependencies = this.processor.initialDependencies(srcDir);
+      this.dependencies = this.processor.initialDependencies(this.inputPaths);
     }
 
     if (this._needsReset) {
@@ -172,12 +181,10 @@ module.exports = class Filter extends Plugin {
       // @ts-ignore
       let instrumentation = heimdall.start('reset');
       if (this.dependencies) {
-        this.dependencies = this.processor.initialDependencies(srcDir);
+        this.dependencies = this.processor.initialDependencies(this.inputPaths);
       }
-      // @ts-ignore
-      rimraf.sync(this.outputPath);
-      // @ts-ignore
-      mkdirp.sync(this.outputPath);
+      this.output.rmdirSync('./', { recursive: true});
+      this.output.mkdirSync('./', { recursive: true });
       instrumentation.stop();
     }
 
@@ -186,8 +193,8 @@ module.exports = class Filter extends Plugin {
     let instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
     let walkStart = process.hrtime();
-    let entries = walkSync.entries(srcDir);
-    let nextTree = FSTree.fromEntries(entries);
+    let entries = this.fsMerger.entries('');
+    let nextTree = FSTree.fromEntries(entries, { sortAndExpand: true });
     let walkDuration = timeSince(walkStart);
 
     let invalidationsStart = process.hrtime();
@@ -239,8 +246,16 @@ module.exports = class Filter extends Plugin {
         let operation = patch[0];
         let relativePath = patch[1];
         let entry = patch[2];
-        let outputPath = destDir + '/' + (this.getDestFilePath(relativePath, entry) || relativePath);
-        let outputFilePath = outputPath;
+        let fileMeta = this.fsMerger.readFileMeta(relativePath, { basePath: entry.basePath });
+        let outputPath = relativePath;
+        if (fileMeta && fileMeta.getDestinationPath) {
+          outputPath = fileMeta.getDestinationPath(relativePath);
+        } else {
+          if (fileMeta && fileMeta.prefix) {
+            outputPath = fileMeta.prefix + '/' + outputPath;
+          }
+        }
+        outputPath = this.getDestFilePath(outputPath, entry) || outputPath;
         let forceInvalidation = invalidated.includes(relativePath);
 
         this._logger.debug('[operation:%s] %s', operation, relativePath);
@@ -248,18 +263,18 @@ module.exports = class Filter extends Plugin {
         switch (operation) {
           case 'mkdir': {
             instrumentation.mkdir++;
-            return fs.mkdirSync(outputPath);
+            return this.output.mkdirSync(outputPath, { recursive: true });
           } case 'rmdir': {
             instrumentation.rmdir++;
-            return fs.rmdirSync(outputPath);
+            return this.output.rmdirSync(outputPath);
           } case 'unlink': {
             instrumentation.unlink++;
-            return fs.unlinkSync(outputPath);
+            return this.output.unlinkSync(outputPath);
           } case 'change': {
             // wrap this in a function so it doesn't actually run yet, and can be throttled
             let changeOperation = () => {
               instrumentation.change++;
-              return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, forceInvalidation, true, instrumentation);
+              return this._handleFile(relativePath, entry, outputPath, forceInvalidation, true, instrumentation);
             };
             if (this.async) {
               pendingWork.push(changeOperation);
@@ -270,7 +285,7 @@ module.exports = class Filter extends Plugin {
             // wrap this in a function so it doesn't actually run yet, and can be throttled
             let createOperation = () => {
               instrumentation.create++;
-              return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, forceInvalidation, false, instrumentation);
+              return this._handleFile(relativePath, entry, outputPath, forceInvalidation, false, instrumentation);
             };
             if (this.async) {
               pendingWork.push(createOperation);
@@ -292,27 +307,29 @@ module.exports = class Filter extends Plugin {
     });
   }
 
-  async _handleFile(relativePath, srcDir, destDir, entry, outputPath, forceInvalidation, isChange, stats) {
+  async _handleFile(relativePath, entry, outputPath, forceInvalidation, isChange, stats) {
     stats.handleFile++;
 
     let handleFileStart = process.hrtime();
+    let destDir = this.outputPath + '/' + outputPath;
     try {
       let result;
-      let srcPath = srcDir + '/' + relativePath;
+      let srcDir = this.inputPaths[0]; // keeping this line to maintain the signature of the fn.
 
       if (this.canProcessFile(relativePath, entry)) {
         stats.processed++;
         if (this._outputLinks[outputPath] === true) {
           delete this._outputLinks[outputPath];
-          fs.unlinkSync(outputPath);
+          this.output.unlinkSync(outputPath);
         }
         result = await this.processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, stats);
       } else {
         stats.linked++;
         if (isChange) {
-          fs.unlinkSync(outputPath);
+          this.output.unlinkSync(outputPath);
         }
-        result = symlinkOrCopySync(srcPath, outputPath);
+        // @ts-ignore
+        result = this.output.symlinkOrCopySync(entry.fullPath, outputPath);
         this._outputLinks[outputPath] = true;
       }
       return result;
@@ -361,16 +378,12 @@ module.exports = class Filter extends Plugin {
   }
 
   isDirectory(relativePath, entry) {
-    // @ts-ignore
-    if (this.inputPaths === undefined) {
+    let fileMeta = this.fsMerger.readFileMeta(relativePath, { basePath: entry && entry.basePath });
+    // If fileMeta isn't present for a path indicates that path isn't present. We send false in this case.
+    if (!fileMeta) {
       return false;
     }
-
-    // @ts-ignore
-    let srcDir = this.inputPaths[0];
-    let path = srcDir + '/' + relativePath;
-
-    return (entry || fs.lstatSync(path)).isDirectory();
+    return (entry || fs.lstatSync(fileMeta.path)).isDirectory();
   }
 
   getDestFilePath(relativePath, entry) {
@@ -418,9 +431,11 @@ module.exports = class Filter extends Plugin {
     if (inputEncoding === undefined)  inputEncoding  = 'utf8';
     if (outputEncoding === undefined) outputEncoding = 'utf8';
 
-    let contents = fs.readFileSync(srcDir + '/' + relativePath, {
+    let contents = this.input.readFileSync(relativePath, {
       encoding: inputEncoding
     });
+
+    let fileMeta = this.fsMerger.readFileMeta(relativePath, { basePath: entry.basePath });
 
     instrumentation.processString++;
     let processStringStart = process.hrtime();
@@ -434,10 +449,13 @@ module.exports = class Filter extends Plugin {
                       relativePath + '") is null');
     }
 
-    outputPath = destDir + '/' + outputPath;
+    if (fileMeta && fileMeta.getDestinationPath) {
+      outputPath = fileMeta.getDestinationPath(outputPath);
+    }
+    outputPath = path.join(fileMeta.prefix || '', outputPath);
 
     if (isChange) {
-      let isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
+      let isSame = this.output.readFileSync(outputPath, 'UTF-8') === outputString;
       if (isSame) {
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
         return;
@@ -447,14 +465,14 @@ module.exports = class Filter extends Plugin {
     }
 
     try {
-      fs.writeFileSync(outputPath, outputString, {
+      this.output.writeFileSync(outputPath, outputString, {
         encoding: outputEncoding
       });
 
     } catch (e) {
       if (e !== null && typeof e === 'object' && e.code === 'ENOENT') {
-        mkdirp.sync(path.dirname(outputPath));
-        fs.writeFileSync(outputPath, outputString, {
+        this.output.mkdirSync(path.dirname(outputPath), { recursive: true });
+        this.output.writeFileSync(outputPath, outputString, {
           encoding: outputEncoding
         });
       } else {

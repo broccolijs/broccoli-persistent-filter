@@ -47,16 +47,14 @@ describe('Dependency Invalidation', function() {
   const EXT_DEP_FIXTURE_DIR = pathFor(__dirname, 'fixtures/dependencies-external');
   const FS_ROOT = path.parse(__dirname).root;
 
-  it('allows relative dependencies', function() {
+  it('Throws error for relative dependencies', function() {
     let dependencies = new Dependencies(DEP_FIXTURE_DIR);
-    dependencies.setDependencies("file1.txt", [
-      pathFor('subdir/subdirFile1.txt'),
-      pathFor('subdir2/subdir2File1.txt'),
-    ]);
-    assert.deepEqual(dependencies.dependencyMap.get("file1.txt"), [
-      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile1.txt'),
-      pathFor(DEP_FIXTURE_DIR, 'subdir2/subdir2File1.txt'),
-    ]);
+    assert.throws(() => {
+        dependencies.setDependencies("file1.txt", [
+        pathFor('subdir/subdirFile1.txt'),
+        pathFor('subdir2/subdir2File1.txt'),
+      ]);
+    }, `setDependencies now accepts onlt absolute path for dependecies path list`);
   });
 
   it('allows absolute dependencies', function() {
@@ -83,39 +81,42 @@ describe('Dependency Invalidation', function() {
     ]);
   });
 
-  it('relative dependencies are relative to the file', function() {
-    let dependencies = new Dependencies(DEP_FIXTURE_DIR);
-    dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
-      pathFor('subdirFile2.txt'),
-      pathFor('../../dependencies-external/dep-1.txt')
-    ]);
-    assert.deepEqual(dependencies.dependencyMap.get(pathFor('subdir/subdirFile1.txt')), [
-      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
-      pathFor(EXT_DEP_FIXTURE_DIR, 'dep-1.txt')
-    ]);
-  });
-
   it('common dependencies are deduped', function () {
     let dependencies = new Dependencies(DEP_FIXTURE_DIR);
     dependencies.setDependencies(pathFor('file1.txt'), [
-      pathFor('subdir/subdirFile2.txt')
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt')
     ]);
     dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
-      pathFor('subdirFile2.txt')
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt')
     ]);
     dependencies.seal();
     let deps = dependencies.allDependencies.get(DEP_FIXTURE_DIR);
     assert.equal(deps.size, 1);
   });
 
+  it('accepts multiple rootDirs', function () {
+    let dependencies = new Dependencies([DEP_FIXTURE_DIR, EXT_DEP_FIXTURE_DIR]);
+    dependencies.setDependencies(pathFor('file1.txt'), [
+      pathFor(EXT_DEP_FIXTURE_DIR, 'dep-1.txt')
+    ]);
+    dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt')
+    ]);
+    dependencies.seal();
+    let deps = dependencies.allDependencies.get(DEP_FIXTURE_DIR);
+    assert.equal(deps.size, 1);
+    deps = dependencies.allDependencies.get(EXT_DEP_FIXTURE_DIR);
+    assert.equal(deps.size, 1);
+  });
+
   it('has a reverse lookup', function () {
     let dependencies = new Dependencies(DEP_FIXTURE_DIR);
     dependencies.setDependencies(pathFor('file1.txt'), [
-      pathFor('subdir/subdirFile1.txt'),
-      pathFor('subdir/subdirFile2.txt')
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile1.txt'),
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt')
     ]);
     dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
-      pathFor('subdirFile2.txt'),
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
       pathFor(EXT_DEP_FIXTURE_DIR, 'dep-1.txt')
     ]);
     dependencies.seal();
@@ -134,8 +135,8 @@ describe('Dependency Invalidation', function() {
   it('builds an FSTree', function () {
     let dependencies = new Dependencies(DEP_FIXTURE_DIR);
     dependencies.setDependencies(pathFor('file1.txt'), [
-      pathFor('subdir/subdirFile1.txt'),
-      pathFor('subdir/subdirFile2.txt')
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile1.txt'),
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt')
     ]);
     dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
       pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
@@ -164,9 +165,9 @@ describe('Dependency Invalidation', function() {
       touch(transientFile, "transient\n");
       let dependencies = new Dependencies(DEP_FIXTURE_DIR);
       dependencies.setDependencies(pathFor('file1.txt'), [
-        pathFor('subdir/subdirFile1.txt'),
-        pathFor('subdir/subdirFile2.txt'),
-        pathFor('subdir/tmpFile1.txt'),
+        pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile1.txt'),
+        pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
+        pathFor(DEP_FIXTURE_DIR, 'subdir/tmpFile1.txt'),
         pathFor(EXT_DEP_FIXTURE_DIR, 'dep-2.txt')
       ]);
       dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
@@ -219,8 +220,8 @@ describe('Dependency Invalidation', function() {
   it('can serialize and deserialize', function () {
     let dependencies = new Dependencies(DEP_FIXTURE_DIR);
     dependencies.setDependencies(pathFor('file1.txt'), [
-      pathFor('subdir/subdirFile1.txt'),
-      pathFor('subdir/subdirFile2.txt'),
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile1.txt'),
+      pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
     ]);
     dependencies.setDependencies(pathFor('subdir/subdirFile1.txt'), [
       pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile2.txt'),
@@ -229,7 +230,7 @@ describe('Dependency Invalidation', function() {
     dependencies.seal();
     dependencies.captureDependencyState();
     let data = dependencies.serialize();
-    assert.deepEqual(Object.keys(data), ['rootDir', 'dependencies', 'fsTrees']);
+    assert.deepEqual(Object.keys(data), ['rootDirs', 'dependencies', 'fsTrees']);
     assert.deepEqual(data.dependencies, {
       'file1.txt': [
         pathFor(DEP_FIXTURE_DIR, 'subdir/subdirFile1.txt'),
