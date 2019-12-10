@@ -1494,10 +1494,6 @@ describe('Filter', function() {
 
   describe('Takes different types input nodes', function() {
     class TestFilter extends Filter {
-      constructor(nodes) {
-        super(nodes);
-      }
-
       processString(content) {
           return content.replace(/broccoli/gi, `filter`);
       }
