@@ -24,7 +24,6 @@ class Inliner extends Filter {
    */
   processString(contents, relativePath) {
     /** @type {string} */
-    // @ts-ignore
     let srcDir = this.inputPaths[0];
     let lines = contents.split("\n");
     /** @type {Array<string>} */

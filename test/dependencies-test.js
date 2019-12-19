@@ -248,7 +248,7 @@ describe('Dependency Invalidation', function() {
     let fileEntries = data.fsTrees[1].entries.filter((e) => !e.relativePath.endsWith('/'));
     assert.deepEqual(fileEntries.length, 1);
     let json = JSON.stringify(data);
-    let restoredDependencies = Dependencies.deserialize(JSON.parse(json));
+    let restoredDependencies = Dependencies.deserialize(JSON.parse(json), undefined, fs);
     let invalidated = restoredDependencies.getInvalidatedFiles();
     assert.deepEqual(invalidated, []);
   });

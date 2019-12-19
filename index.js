@@ -1,14 +1,9 @@
 // @ts-check
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
-const mkdirp = require('mkdirp');
-const rimraf = require('rimraf');
 const Plugin = require('broccoli-plugin');
-const walkSync = require('walk-sync');
 const mapSeries = require('promise-map-series');
-const symlinkOrCopySync = require('symlink-or-copy').sync;
 const debugGenerator = require('heimdalljs-logger');
 const md5Hex = require('./lib/md5-hex');
 const Processor = require('./lib/processor');
@@ -158,13 +153,11 @@ module.exports = class Filter extends Plugin {
   }
 
   async build() {
-    // @ts-ignore
     let srcDir = this.inputPaths[0];
-    // @ts-ignore
     let destDir = this.outputPath;
 
     if (this.dependencyInvalidation && !this.dependencies) {
-      this.dependencies = this.processor.initialDependencies(srcDir);
+      this.dependencies = this.processor.initialDependencies(srcDir, { fs: this.input });
     }
 
     if (this._needsReset) {
@@ -172,12 +165,10 @@ module.exports = class Filter extends Plugin {
       // @ts-ignore
       let instrumentation = heimdall.start('reset');
       if (this.dependencies) {
-        this.dependencies = this.processor.initialDependencies(srcDir);
+        this.dependencies = this.processor.initialDependencies(srcDir, { fs: this.input });
       }
-      // @ts-ignore
-      rimraf.sync(this.outputPath);
-      // @ts-ignore
-      mkdirp.sync(this.outputPath);
+      this.output.rmdirSync('./',  { recursive: true });
+      this.output.mkdirSync('./', { recursive: true });
       instrumentation.stop();
     }
 
@@ -186,7 +177,7 @@ module.exports = class Filter extends Plugin {
     let instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
     let walkStart = process.hrtime();
-    let entries = walkSync.entries(srcDir);
+    let entries = this.input.entries('./');
     let nextTree = FSTree.fromEntries(entries);
     let walkDuration = timeSince(walkStart);
 
@@ -239,7 +230,7 @@ module.exports = class Filter extends Plugin {
         let operation = patch[0];
         let relativePath = patch[1];
         let entry = patch[2];
-        let outputPath = destDir + '/' + (this.getDestFilePath(relativePath, entry) || relativePath);
+        let outputPath = this.getDestFilePath(relativePath, entry) || relativePath || './';
         let outputFilePath = outputPath;
         let forceInvalidation = invalidated.includes(relativePath);
 
@@ -248,13 +239,13 @@ module.exports = class Filter extends Plugin {
         switch (operation) {
           case 'mkdir': {
             instrumentation.mkdir++;
-            return fs.mkdirSync(outputPath);
+            return this.output.mkdirSync(outputPath);
           } case 'rmdir': {
             instrumentation.rmdir++;
-            return fs.rmdirSync(outputPath);
+            return this.output.rmdirSync(outputPath);
           } case 'unlink': {
             instrumentation.unlink++;
-            return fs.unlinkSync(outputPath);
+            return this.output.unlinkSync(outputPath);
           } case 'change': {
             // wrap this in a function so it doesn't actually run yet, and can be throttled
             let changeOperation = () => {
@@ -304,15 +295,15 @@ module.exports = class Filter extends Plugin {
         stats.processed++;
         if (this._outputLinks[outputPath] === true) {
           delete this._outputLinks[outputPath];
-          fs.unlinkSync(outputPath);
+          this.output.unlinkSync(outputPath);
         }
         result = await this.processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, stats);
       } else {
         stats.linked++;
         if (isChange) {
-          fs.unlinkSync(outputPath);
+          this.output.unlinkSync(outputPath);
         }
-        result = symlinkOrCopySync(srcPath, outputPath);
+        result = this.output.symlinkOrCopySync(srcPath, outputPath);
         this._outputLinks[outputPath] = true;
       }
       return result;
@@ -361,16 +352,11 @@ module.exports = class Filter extends Plugin {
   }
 
   isDirectory(relativePath, entry) {
-    // @ts-ignore
     if (this.inputPaths === undefined) {
       return false;
     }
 
-    // @ts-ignore
-    let srcDir = this.inputPaths[0];
-    let path = srcDir + '/' + relativePath;
-
-    return (entry || fs.lstatSync(path)).isDirectory();
+    return (entry || this.input.lstatSync(relativePath)).isDirectory();
   }
 
   getDestFilePath(relativePath, entry) {
@@ -418,7 +404,7 @@ module.exports = class Filter extends Plugin {
     if (inputEncoding === undefined)  inputEncoding  = 'utf8';
     if (outputEncoding === undefined) outputEncoding = 'utf8';
 
-    let contents = fs.readFileSync(srcDir + '/' + relativePath, {
+    let contents = this.input.readFileSync(relativePath, {
       encoding: inputEncoding
     });
 
@@ -434,10 +420,8 @@ module.exports = class Filter extends Plugin {
                       relativePath + '") is null');
     }
 
-    outputPath = destDir + '/' + outputPath;
-
     if (isChange) {
-      let isSame = fs.readFileSync(outputPath, 'UTF-8') === outputString;
+      let isSame = this.output.readFileSync(outputPath, 'UTF-8') === outputString;
       if (isSame) {
         this._logger.debug('[change:%s] but was the same, skipping', relativePath, isSame);
         return;
@@ -447,14 +431,14 @@ module.exports = class Filter extends Plugin {
     }
 
     try {
-      fs.writeFileSync(outputPath, outputString, {
+      this.output.writeFileSync(outputPath, outputString, {
         encoding: outputEncoding
       });
 
     } catch (e) {
       if (e !== null && typeof e === 'object' && e.code === 'ENOENT') {
-        mkdirp.sync(path.dirname(outputPath));
-        fs.writeFileSync(outputPath, outputString, {
+        this.output.mkdirSync(path.dirname(outputPath), { recursive: true });
+        this.output.writeFileSync(outputPath, outputString, {
           encoding: outputEncoding
         });
       } else {
