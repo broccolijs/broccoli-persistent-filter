@@ -309,7 +309,7 @@ module.exports = class Filter extends Plugin {
         result = await this.processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, stats);
       } else {
         stats.linked++;
-        if (isChange) {
+        if (isChange && fs.existsSync(outputPath)) {
           fs.unlinkSync(outputPath);
         }
         result = symlinkOrCopySync(srcPath, outputPath);
