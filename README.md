@@ -1,6 +1,5 @@
 # broccoli-persistent-filter
 
-[![Greenkeeper badge](https://badges.greenkeeper.io/stefanpenner/broccoli-persistent-filter.svg)](https://greenkeeper.io/)
 [![Build Status](https://travis-ci.org/stefanpenner/broccoli-persistent-filter.svg?branch=master)](https://travis-ci.org/stefanpenner/broccoli-persistent-filter)
 [![Build status](https://ci.appveyor.com/api/projects/status/gvt0rheb1c2c4jwd/branch/master?svg=true)](https://ci.appveyor.com/project/embercli/broccoli-persistent-filter/branch/master)
 
@@ -20,7 +19,7 @@ class Filter {
   constructor(inputNode: BroccoliNode, options: FilterOptions): Filter;
 
   /**
-   * Abstract method `processString`: must be implemented on subclasses of
+   * method `processString`: must be implemented on subclasses of
    * Filter.
    *
    * The resolved return value can either be an object or a string.
@@ -31,10 +30,10 @@ class Filter {
    *
    * When a string is returned it is used as the file contents.
    */
-  abstract processString(contents: string, relativePath: string): {string | object };
+  processString(contents: string, relativePath: string): {string | object };
 
   /**
-   * Virtual method `getDestFilePath`: determine whether the source file should
+   * Method `getDestFilePath`: determine whether the source file should
    * be processed, and optionally rename the output file when processing occurs.
    *
    * Return `null` to pass the file through without processing. Return
@@ -45,7 +44,7 @@ class Filter {
    * property `extensions`, and `targetExtension` is supplied, the first matching
    * extension in the list is replaced with the `targetExtension` option's value.
    */
-  virtual getDestFilePath(relativePath: string): string;
+  getDestFilePath(relativePath: string): string;
 
   /**
    * Method `postProcess`: may be implemented on subclasses of
