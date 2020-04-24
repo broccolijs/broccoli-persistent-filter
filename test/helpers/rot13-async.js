@@ -1,7 +1,7 @@
 'use strict';
 
 const Promise = require('rsvp').Promise;
-const Filter = require('../../');
+const Filter = require('../..');
 
 
 module.exports = class Rot13Async extends Filter {

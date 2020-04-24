@@ -2,7 +2,7 @@
 
 const path = require('path');
 const Promise = require('rsvp').Promise;
-const Filter = require('../../');
+const Filter = require('../..');
 const minimatch = require('minimatch');
 
 module.exports = class ReplaceAsyncFilter extends Filter {

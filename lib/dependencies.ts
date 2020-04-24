@@ -1,58 +1,96 @@
 /// @ts-check
 "use strict";
 
-const path = require("path");
-const fs = require("fs");
-const Entry = require("fs-tree-diff/lib/entry").default;
-const FSTree = require("fs-tree-diff");
-const md5sum = require("./md5-hex");
-const fsHashDiff = require("./fs-hash-diff");
-const HashEntry = fsHashDiff.HashEntry;
-const FSHashTree = fsHashDiff.FSHashTree;
+import * as path from "path";
+import * as fs from "fs";
+import FSTree = require("fs-tree-diff");
+import Entry from "fs-tree-diff/lib/entry";
+import { HashEntry, FSHashTree } from "./fs-hash-diff";
+import md5sum = require("./md5-hex");
 
-module.exports = class Dependencies {
+namespace Dependencies {
+  export type FSFacade = Pick<typeof fs, "readFileSync" | "statSync">;
+  export interface Options {
+    fs: FSFacade;
+  }
+}
+
+interface SerializedTreeEntry {
+  relativePath: string;
+}
+
+interface SerializedStatEntry {
+  type: 'stat';
+  size: number;
+  mtime: number;
+  mode: number;
+}
+
+interface SerializedHashEntry {
+  type: 'hash';
+  hash: string;
+}
+
+type SerializedEntry = SerializedTreeEntry
+                     & ( SerializedStatEntry | SerializedHashEntry);
+
+type SerializedTree = {
+  fsRoot: string,
+  entries: Array<SerializedEntry>
+}
+
+interface SerializedDependencies {
+  rootDir: string;
+  fsTrees: Array<SerializedTree>;
+  dependencies: Record<string, Array<string>>;
+}
+
+class Dependencies {
+  /**
+   * Tracks whether new dependencies can be added.
+   **/
+  private sealed: boolean;
+  /**
+   * The root directory containing the files that have dependencies. Relative
+   * paths are resolved against this directory.
+   */
+  private rootDir: string;
+  /**
+   * Tracks dependencies on a per file basis.
+   * The key is a relative path, values are absolute paths.
+   **/
+  private dependencyMap: Map<string, Array<string>>;
+  /**
+   * Map of filesystem roots to unique dependencies on that filesystem. This
+   * property is only populated once `seal()` is called. This allows us to
+   * build an FSTree (which requires relative paths) per filesystem root.
+   */
+  private allDependencies: Map<string, Set<string>>;
+  /**
+   * Map of filesystem roots to FSTrees, capturing the state of all
+   * dependencies.
+   */
+  private fsTrees: Map<string, FSTree<Entry>|FSHashTree>;
+  /**
+   * Maps dependencies to the files that depend on them.
+   * Keys are absolute paths, values are paths relative to the `rootDir`.
+   */
+  dependentsMap: Map<string, string[]>;
+  fs: Dependencies.FSFacade;
+
   /**
    * Creates an instance of Dependencies.
-   * @param rootDir {string} The root directory containing the files that
+   * @param rootDir The root directory containing the files that
    *   have dependencies. Relative paths are resolved against this directory.
-   * @param options { {[key:string]: any} } options is used to pass the custom fs opertations implementations
+   * @param options options is used to pass the custom fs opertations implementations
    */
-  constructor(rootDir, options = {}) {
-    /**
-     * Tracks whether new dependencies can be added.
-     **/
+  constructor(rootDir: string, options: Partial<Dependencies.Options> = {}) {
     this.sealed = false;
-    /**
-     * The root directory containing the files that have dependencies. Relative
-     * paths are resolved against this directory.
-     * @type {string}
-     */
     this.rootDir = path.normalize(rootDir);
-    /**
-     * Tracks dependencies on a per file basis.
-     * The key is a relative path, values are absolute paths.
-     * @type {Map<string, Array<string>>}
-     **/
-    this.dependencyMap = new Map();
-    /**
-     * Map of filesystem roots to unique dependencies on that filesystem. This
-     * property is only populated once `seal()` is called. This allows us to
-     * build an FSTree (which requires relative paths) per filesystem root.
-     * @type {Map<string, Set<string>>}
-     */
-    this.allDependencies = new Map();
-    /**
-     * Map of filesystem roots to FSTrees, capturing the state of all
-     * dependencies.
-     * @type {Map<string, FSTree<Entry> | FSHashTree>}
-     */
-    this.fsTrees = new Map();
-    /**
-     * Maps dependencies to the files that depend on them.
-     * Keys are absolute paths, values are paths relative to the `rootDir`.
-     * @type Map<string, Array<string>>;
-     */
-    this.dependentsMap = new Map();
+    this.dependencyMap = new Map<string, Array<string>>();
+    this.allDependencies = new Map<string, Set<string>>();
+    this.fsTrees = new Map<string, FSTree<Entry>|FSHashTree>();
+    this.dependentsMap = new Map<string, Array<string>>();
     /**
      * Custom fs object can be passed to the custructor.
      * This helps us to pass the this.input of the broccoli-plugin
@@ -67,8 +105,8 @@ module.exports = class Dependencies {
    * called.
    * @return {this}
    */
-  seal() {
-    if (this.sealed) return;
+  seal(): this {
+    if (this.sealed) return this;
     this.sealed = true;
     this.dependencyMap.forEach((deps, referer) => {
       for (let i = 0; i < deps.length; i++) {
@@ -96,7 +134,7 @@ module.exports = class Dependencies {
     return this;
   }
 
-  _getDepsForRoot(dir) {
+  _getDepsForRoot(dir: string) {
     let depsForRoot = this.allDependencies.get(dir);
     if (!depsForRoot) {
       depsForRoot = new Set();
@@ -140,13 +178,12 @@ module.exports = class Dependencies {
    *   depends on. Relative paths are resolved relative to the directory
    *   containing the file that depends on them.
    */
-  setDependencies(filePath, dependencies) {
+  setDependencies(filePath: string, dependencies: Array<string>) {
     filePath = path.normalize(filePath);
     if (this.sealed) {
       throw new Error("Cannot set dependencies when sealed");
     }
-    /** @type {Array<string>} */
-    let absoluteDeps = [];
+    let absoluteDeps = new Array<string>();
     let fileDir = path.dirname(filePath);
     for (let i = 0; i < dependencies.length; i++) {
       let depPath = path.normalize(dependencies[i]);
@@ -168,12 +205,12 @@ module.exports = class Dependencies {
    * @param files {Array<string>}
    * @returns {Dependencies}
    */
-  copyWithout(files) {
+  copyWithout(files: Array<string>) {
     files = files.map(f => path.normalize(f));
     let newDeps = new Dependencies(this.rootDir, { fs: this.fs });
     for (let file of this.dependencyMap.keys()) {
       if (!files.includes(file)) {
-        newDeps.setDependencies(file, this.dependencyMap.get(file));
+        newDeps.setDependencies(file, this.dependencyMap.get(file)!);
       }
     }
     return newDeps;
@@ -200,7 +237,7 @@ module.exports = class Dependencies {
     /** @type {Map<string, FSTree<Entry> | FSHashTree>} */
     let fsTrees = new Map();
     for (let fsRoot of this.allDependencies.keys()) {
-      let dependencies = this.allDependencies.get(fsRoot);
+      let dependencies = this.allDependencies.get(fsRoot)!;
       /** @type {FSTree<Entry> | FSHashTree} */
       let fsTree;
       if (fsRoot === this.rootDir) {
@@ -219,13 +256,21 @@ module.exports = class Dependencies {
    * @returns {Array<string>} relative paths to the files that had a dependency change.
    */
   getInvalidatedFiles() {
-    /** @type {Set<string>} */
-    let invalidated = new Set();
+    let invalidated = new Set<string>();
     let currentState = this.getDependencyState();
     for (let fsRoot of this.allDependencies.keys()) {
       let oldTree = this.fsTrees.get(fsRoot);
+      if (!oldTree) throw new Error("internal error");
       let currentTree = currentState.get(fsRoot);
-      let patch = oldTree.calculatePatch(currentTree);
+      let patch: FSTree.Patch;
+      // typescript doesn't think these calculatePatch methods are the same
+      // enough to call them from a single code path. I think it's a typescript
+      // bug. the use of a type discriminator works around it.
+      if (oldTree instanceof FSHashTree) {
+        patch = oldTree.calculatePatch(currentTree);
+      } else {
+        patch = oldTree.calculatePatch(currentTree);
+      }
       for (let operation of patch) {
         let depPath = path.join(fsRoot, operation[1]);
         let dependents = this.dependentsMap.get(depPath);
@@ -247,18 +292,16 @@ module.exports = class Dependencies {
    * used to invalidate files during the next build in a new process.
    * @return {{rootDir: string, dependencies: {[k: string]: string[]}, fsTrees: Array<{fsRoot: string, entries: Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>}>}}
    */
-  serialize() {
-    /** @type {{[k: string]: string[]}} */
-    let dependencies = {};
+  serialize(): SerializedDependencies {
+    let dependencies: Record<string, Array<string>> = {};
     this.dependencyMap.forEach((deps, filePath) => {
       dependencies[filePath] = deps;
     });
-    /** @type {Array<{fsRoot: string, entries: Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>}>} */
-    let fsTrees = [];
+    let fsTrees = new Array<SerializedTree>();
     for (let fsRoot of this.fsTrees.keys()) {
-      let fsTree = this.fsTrees.get(fsRoot);
+      let fsTree = this.fsTrees.get(fsRoot)!;
       /** @type {Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>} */
-      let entries = [];
+      let entries = new Array<SerializedEntry>();
       for (let entry of fsTree.entries) {
         if (entry instanceof HashEntry) {
           entries.push({
@@ -270,9 +313,9 @@ module.exports = class Dependencies {
           entries.push({
             type: "stat",
             relativePath: entry.relativePath,
-            size: entry.size,
-            mtime: +entry.mtime,
-            mode: entry.mode
+            size: entry.size!,
+            mtime: +entry.mtime!,
+            mode: entry.mode!
           });
         }
       }
@@ -297,7 +340,7 @@ module.exports = class Dependencies {
    * @param customFS {typeof fs}. A customFS method to support fs facade change in broccoli-plugin.
    * @return {Dependencies};
    */
-  static deserialize(dependencyData, newRootDir, customFS) {
+  static deserialize(dependencyData: SerializedDependencies, newRootDir: string, customFS: Dependencies.FSFacade) {
     let oldRootDir = dependencyData.rootDir;
     newRootDir = path.normalize(newRootDir || oldRootDir);
     let dependencies = new Dependencies(newRootDir, { fs: customFS });
@@ -314,11 +357,9 @@ module.exports = class Dependencies {
       }
       dependencies.setDependencies(file, deps);
     }
-    /** @type {Map<string, FSTree>} */
-    let fsTrees = new Map();
+    let fsTrees = new Map<string, FSTree>();
     for (let fsTreeData of dependencyData.fsTrees) {
-      /** @type {Array<Entry | HashEntry>} */
-      let entries = [];
+      let entries = new Array<Entry | HashEntry>();
       for (let entry of fsTreeData.entries) {
         if (entry.type === "stat") {
           entries.push(new Entry(entry.relativePath, entry.size, entry.mtime, entry.mode));
@@ -326,10 +367,8 @@ module.exports = class Dependencies {
           entries.push(new HashEntry(entry.relativePath, entry.hash));
         }
       }
-      /** @type {FSTree | FSHashTree}  */
-      let fsTree;
-      /** @type {string} */
-      let treeRoot;
+      let fsTree: FSTree | FSHashTree;
+      let treeRoot: string;
       if (fsTreeData.fsRoot === oldRootDir) {
         treeRoot = newRootDir;
         fsTree = FSHashTree.fromHashEntries(entries, { sortAndExpand: true });
@@ -343,7 +382,9 @@ module.exports = class Dependencies {
     dependencies.fsTrees = fsTrees;
     return dependencies;
   }
-};
+}
+
+export = Dependencies;
 
 /**
  * Get an FSTree that uses content hashing information to compare files to
@@ -353,15 +394,19 @@ module.exports = class Dependencies {
  * @param dependencies {Set<string>}
  * @return {FSHashTree}
  */
-function getHashTree(fsRoot, dependencies, fs) {
-  /** @type {Array<HashEntry>} */
-  let entries = [];
+function getHashTree(fsRoot: string, dependencies: Set<string>, fs: Dependencies.FSFacade) {
+  let entries = new Array<HashEntry>();
   for (let dependency of dependencies) {
     let fullPath = path.join(fsRoot, dependency);
     try {
       // it would be good if we could cache this and share it with
       // the read that accompanies `processString()` (if any).
-      let contents = fs.readFileSync(fullPath, "utf8");
+      let contents;
+      try {
+        contents = fs.readFileSync(fullPath, "utf8");
+      } catch (e) {
+        contents = fs.readFileSync(dependency, "utf8");
+      }
       let hash = md5sum(contents);
       entries.push(new HashEntry(dependency, hash));
     } catch(e) {
@@ -378,9 +423,8 @@ function getHashTree(fsRoot, dependencies, fs) {
  * @param fsRoot {string}
  * @param dependencies {Set<string>}
  */
-function getStatTree(fsRoot, dependencies, fs) {
-  /** @type {Array<Entry>} */
-  let entries = [];
+function getStatTree(fsRoot: string, dependencies: Set<string>, fs: Dependencies.FSFacade) {
+  let entries = new Array<Entry>();
   for (let dependency of dependencies) {
     let fullPath = path.join(fsRoot, dependency);
     try {

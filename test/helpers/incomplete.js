@@ -1,6 +1,6 @@
 'use strict';
 
-var Filter = require('../../');
+var Filter = require('../..');
 
 class IncompleteFilter extends Filter {
 }

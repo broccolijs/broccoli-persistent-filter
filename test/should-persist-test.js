@@ -1,7 +1,7 @@
 'use strict';
 
 const expect = require('chai').expect;
-const shouldPersist = require('../index').shouldPersist;
+const shouldPersist = require('../').shouldPersist;
 
 describe('shouldPersist', function() {
   it('works', function() {

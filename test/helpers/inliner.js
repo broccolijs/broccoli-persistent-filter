@@ -24,7 +24,6 @@ class Inliner extends Filter {
    */
   processString(contents, relativePath) {
     /** @type {string} */
-    let srcDir = this.inputPaths[0];
     let lines = contents.split("\n");
     /** @type {Array<string>} */
     let deps = [];
@@ -33,9 +32,9 @@ class Inliner extends Filter {
       let m = line.match(/\/\/\s+<<\s+(.*)\s*/);
       if (m) {
         let fileRef = m[1];
-        let filePath = path.normalize(path.resolve(srcDir, path.dirname(relativePath), fileRef));
+        let filePath = path.normalize(path.resolve("/", path.dirname(relativePath), fileRef)).substring(1);
         deps.push(filePath);
-        lines[i] = fs.readFileSync(filePath, "utf8").trim();
+        lines[i] = this.input.readFileSync(filePath, "utf8").trim();
       }
     }
     this.dependencies.setDependencies(relativePath, deps);

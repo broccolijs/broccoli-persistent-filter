@@ -6,14 +6,20 @@
   "main": "index.js",
   "files": [
     "index.js",
+    "index.d.ts",
+    "index.js.map",
     "lib/"
   ],
   "scripts": {
-    "test": "mocha",
-    "test:debug": "mocha debug",
-    "test:debug:brk": "mocha --debug-brk",
-    "test:watch": "mocha --watch",
-    "test:coverage": "istanbul cover --config=test/istanbul.yml _mocha"
+    "prepare": "tsc -b",
+    "watch": "tsc --watch .",
+    "clean": "tsc -b --clean .",
+    "test": "yarn prepare && yarn test:js && yarn test:types",
+    "test:coverage": "istanbul cover --config=test/istanbul.yml _mocha",
+    "test:debug": "yarn build && yarn test:js:debug",
+    "test:js": "mocha --require source-map-support/register  test/*-test.js",
+    "test:types": "dtslint type-tests",
+    "test:js:debug": "mocha --require source-map-support/register  debug test/*-test.js"
   },
   "license": "MIT",
   "repository": {
@@ -34,6 +40,7 @@
   "dependencies": {
     "async-disk-cache": "^2.0.0",
     "async-promise-queue": "^1.0.3",
+    "broccoli-node-api": "^1.7.0",
     "broccoli-plugin": "^4.0.1",
     "fs-tree-diff": "^2.0.0",
     "hash-for-dep": "^1.5.0",
@@ -46,18 +53,26 @@
     "sync-disk-cache": "^2.0.0"
   },
   "devDependencies": {
+    "@types/async": "^3.2.0",
+    "@types/chai": "^4.2.11",
+    "@types/mocha": "^7.0.2",
+    "@types/node": "^13",
+    "@types/rimraf": "^3.0.0",
     "broccoli-test-helper": "^2.0.0",
-    "chai": "^4.1.2",
     "chai-as-promised": "^7.1.1",
     "chai-files": "^1.4.0",
+    "chai": "^4.2.0",
     "co": "^4.6.0",
     "coveralls": "^3.0.9",
+    "dtslint": "^3.4.1",
     "istanbul": "^0.4.2",
     "minimatch": "^3.0.2",
-    "mocha": "^6.2.2",
     "mocha-jshint": "^2.3.1",
+    "mocha": "^7.1.1",
+    "sinon-chai": "^3.1.0",
     "sinon": "^7.5.0",
-    "sinon-chai": "^3.1.0"
+    "source-map-support": "^0.5.16",
+    "typescript": "^3.8.3"
   },
   "engines": {
     "node": "10.* || >= 12.*"

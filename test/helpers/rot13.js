@@ -1,6 +1,6 @@
 'use strict';
 
-var Filter = require('../../');
+var Filter = require('../..');
 
 
 class Rot13 extends Filter {

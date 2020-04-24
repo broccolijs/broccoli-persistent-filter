@@ -1,20 +1,37 @@
-// @ts-check
-'use strict';
+import type { InputNode } from 'broccoli-node-api';
+import queue from 'async-promise-queue';
+import Plugin from 'broccoli-plugin';
+import FSTree from 'fs-tree-diff';
+import hashForDep from 'hash-for-dep';
+import heimdall from 'heimdalljs';
+import debugGenerator from 'heimdalljs-logger';
+import * as path from 'path';
+import mapSeries from 'promise-map-series';
 
-const path = require('path');
-const Plugin = require('broccoli-plugin');
-const mapSeries = require('promise-map-series');
-const debugGenerator = require('heimdalljs-logger');
-const md5Hex = require('./lib/md5-hex');
-const Processor = require('./lib/processor');
-const Dependencies = require('./lib/dependencies'); // jshint ignore:line
-const addPatches = require('./lib/addPatches');
-const hashForDep = require('hash-for-dep');
-const FSTree = require('fs-tree-diff');
-const heimdall = require('heimdalljs');
-const queue = require('async-promise-queue');
+import addPatches from './lib/addPatches';
+import type Dependencies from './lib/dependencies';
+import md5Hex from './lib/md5-hex';
+import Processor from './lib/processor';
+import { ProcessStringResult } from './lib/strategies/strategy';
+import Entry from 'fs-tree-diff/lib/entry';
 
 class ApplyPatchesSchema {
+  mkdir: number;
+  rmdir: number;
+  unlink: number;
+  change: number;
+  create: number;
+  other: number;
+  processed: number;
+  linked: number;
+  handleFile: number;
+
+  processString: number;
+  processStringTime: number;
+  persistentCacheHit: number;
+  persistentCachePrime: number;
+  handleFileTime: number;
+
   constructor() {
     this.mkdir = 0;
     this.rmdir = 0;
@@ -35,20 +52,40 @@ class ApplyPatchesSchema {
 }
 
 class DerivePatchesSchema {
+  patches: number;
+  entries: number;
+  walk: {
+    entries: number;
+    duration: string;
+  };
+  invalidations: {
+    dependencies: number,
+    count: number,
+    duration: string
+  };
   constructor() {
     this.patches = 0;
     this.entries = 0;
+    this.walk = {
+      entries: 0,
+      duration: ""
+    };
+    this.invalidations = {
+      dependencies: 0,
+      count: 0,
+      duration: "",
+    };
   }
 }
 
-const worker = queue.async.asyncify(doWork => doWork());
+const worker = queue.async.asyncify((doWork: () => void) => doWork());
 
-function nanosecondsSince(time) {
+function nanosecondsSince(time: [number, number]) {
   let delta = process.hrtime(time);
   return delta[0] * 1e9 + delta[1];
 }
 
-function timeSince(time) {
+function timeSince(time: [number, number]) {
   let deltaNS = nanosecondsSince(time);
   return (deltaNS / 1e6).toFixed(2) +' ms';
 }
@@ -58,17 +95,16 @@ function timeSince(time) {
  * @param currentTree {FSTree} the current tree - for entry lookup.
  * @param nextTree {FSTree} The next tree - for entry lookup.
  */
-function invalidationsAsPatches(invalidated, currentTree, nextTree) {
+function invalidationsAsPatches(invalidated: Array<string>, currentTree: FSTree, nextTree: FSTree): FSTree.Patch {
   if (invalidated.length === 0) {
     return [];
   }
-  /** @type {Array<FSTree.Operation>} */
-  let patches = [];
-  let currentEntries = {};
+  let patches: FSTree.Patch = [];
+  let currentEntries: Record<string, FSTree.Entry> = {};
   for (let entry of currentTree.entries) {
     currentEntries[entry.relativePath] = entry;
   }
-  let nextEntries = {};
+  let nextEntries: Record<string, FSTree.Entry> = {};
   for (let entry of nextTree.entries) {
     nextEntries[entry.relativePath] = entry;
   }
@@ -82,12 +118,40 @@ function invalidationsAsPatches(invalidated, currentTree, nextTree) {
   return patches;
 }
 
-async function invoke(context, fn, args) {
+async function invoke<T extends object, Args extends Array<unknown>, R>(context: T, fn: (this: T, ...args: Args) => R, args: Args): Promise<R> {
   return await fn.apply(context, args);
 }
 
-module.exports = class Filter extends Plugin {
-  static shouldPersist(env, persist) {
+interface Options {
+  name?: string;
+  annotation?: string;
+  persist?: boolean;
+  extensions?: Array<string>;
+  targetExtension?: string;
+  inputEncoding?: string;
+  outputEncoding?: string;
+  async?: boolean;
+  dependencyInvalidation: boolean;
+  concurrency: number;
+}
+
+abstract class Filter extends Plugin {
+  processor: Processor;
+  dependencies: Dependencies | null;
+  currentTree: FSTree;
+  extensions: undefined | Array<string>;
+  targetExtension: string | undefined;
+  inputEncoding: string | undefined;
+  outputEncoding: string | undefined;
+  async: boolean;
+  dependencyInvalidation: boolean;
+  _canProcessCache: object;
+  _destFilePathCache: object;
+  _needsReset: boolean;
+  concurrency: number;
+  _outputLinks: Record<string, boolean>;
+  _logger: debugGenerator.Logger;
+  static shouldPersist(env: typeof process.env, persist: boolean | undefined): boolean {
     let result;
 
     if (env.CI) {
@@ -99,7 +163,7 @@ module.exports = class Filter extends Plugin {
     return !!result;
   }
 
-  constructor(inputTree, options) {
+  constructor(inputTree: InputNode, options: Options) {
     super([inputTree], {
       name: (options && options.name),
       annotation: (options && options.annotation),
@@ -116,16 +180,13 @@ module.exports = class Filter extends Plugin {
       loggerName += ' > [' + annotation + ']';
     }
 
-    /** @type {{debug(...s: any[]): void; info(...s: any[]): void}} */
-    // @ts-ignore
     this._logger = debugGenerator(loggerName);
 
-    /** @type {Processor} */
     this.processor = new Processor(options);
-    /** @type {Dependencies | null} */
     this.dependencies = null;
 
     this.currentTree = new FSTree();
+    this.async = false;
 
     /* Destructuring assignment in node 0.12.2 would be really handy for this! */
     if (options) {
@@ -141,8 +202,6 @@ module.exports = class Filter extends Plugin {
 
     this.processor.init(this);
 
-    // TODO: don't enable this by default. it's just for testing.
-    /** @type {boolean} */
     this.dependencyInvalidation = options && options.dependencyInvalidation || false;
     this._canProcessCache = Object.create(null);
     this._destFilePathCache = Object.create(null);
@@ -162,7 +221,6 @@ module.exports = class Filter extends Plugin {
 
     if (this._needsReset) {
       this.currentTree = new FSTree();
-      // @ts-ignore
       let instrumentation = heimdall.start('reset');
       if (this.dependencies) {
         this.dependencies = this.processor.initialDependencies(srcDir, { fs: this.input });
@@ -173,7 +231,6 @@ module.exports = class Filter extends Plugin {
     }
 
     let prevTime = process.hrtime();
-    // @ts-ignore
     let instrumentation = heimdall.start('derivePatches', DerivePatchesSchema);
 
     let walkStart = process.hrtime();
@@ -222,14 +279,16 @@ module.exports = class Filter extends Plugin {
     }
 
     // used with options.async = true to allow 'create' and 'change' operations to complete async
-    const pendingWork = [];
-    // @ts-ignore
-    return heimdall.node('applyPatches', ApplyPatchesSchema, async instrumentation => {
+    const pendingWork = new Array<() => Promise<string | ProcessStringResult | undefined>>();
+    return heimdall.node('applyPatches', ApplyPatchesSchema, async (instrumentation) => {
       let prevTime = process.hrtime();
-      await mapSeries(patches, patch => {
+      await mapSeries(patches, (patch: FSTree.Operation) => {
         let operation = patch[0];
         let relativePath = patch[1];
         let entry = patch[2];
+        if (!entry) {
+          throw new Error("internal error");
+        }
         let outputPath = this.getDestFilePath(relativePath, entry) || relativePath || './';
         let outputFilePath = outputPath;
         let forceInvalidation = invalidated.includes(relativePath);
@@ -250,7 +309,7 @@ module.exports = class Filter extends Plugin {
             // wrap this in a function so it doesn't actually run yet, and can be throttled
             let changeOperation = () => {
               instrumentation.change++;
-              return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, forceInvalidation, true, instrumentation);
+              return this._handleFile(relativePath, srcDir, destDir, entry!, outputFilePath, forceInvalidation, true, instrumentation);
             };
             if (this.async) {
               pendingWork.push(changeOperation);
@@ -261,7 +320,7 @@ module.exports = class Filter extends Plugin {
             // wrap this in a function so it doesn't actually run yet, and can be throttled
             let createOperation = () => {
               instrumentation.create++;
-              return this._handleFile(relativePath, srcDir, destDir, entry, outputFilePath, forceInvalidation, false, instrumentation);
+              return this._handleFile(relativePath, srcDir, destDir, entry!, outputFilePath, forceInvalidation, false, instrumentation);
             };
             if (this.async) {
               pendingWork.push(createOperation);
@@ -283,12 +342,12 @@ module.exports = class Filter extends Plugin {
     });
   }
 
-  async _handleFile(relativePath, srcDir, destDir, entry, outputPath, forceInvalidation, isChange, stats) {
+  async _handleFile(relativePath: string, srcDir: string, destDir: string, entry: Entry, outputPath: string, forceInvalidation: boolean, isChange: boolean, stats: ApplyPatchesSchema) {
     stats.handleFile++;
 
     let handleFileStart = process.hrtime();
     try {
-      let result;
+      let result: string | ProcessStringResult | undefined;
       let srcPath = srcDir + '/' + relativePath;
 
       if (this.canProcessFile(relativePath, entry)) {
@@ -303,7 +362,8 @@ module.exports = class Filter extends Plugin {
         if (isChange) {
           this.output.unlinkSync(outputPath);
         }
-        result = this.output.symlinkOrCopySync(srcPath, outputPath);
+        this.output.symlinkOrCopySync(srcPath, outputPath);
+        result = undefined;
         this._outputLinks[outputPath] = true;
       }
       return result;
@@ -332,26 +392,26 @@ module.exports = class Filter extends Plugin {
  * @method baseDir
  * @returns {String} absolute path to the root of the filter...
  */
-  baseDir() {
+  baseDir(): string {
     throw Error('[BroccoliPersistentFilter] Filter must implement prototype.baseDir');
   }
 
   /**
    * @public
    *
-   * optionally override this to build a more rhobust cache key
+   * optionally override this to build a more robust cache key
    * @param  {String} string The contents of a file that is being processed
    * @return {String}        A cache key
    */
-  cacheKeyProcessString(string, relativePath) {
+  cacheKeyProcessString(string: string, relativePath: string) {
     return md5Hex(string + 0x00 + relativePath);
   }
 
-  canProcessFile(relativePath, entry) {
+  canProcessFile(relativePath: string, entry: Entry) {
     return !!this.getDestFilePath(relativePath, entry);
   }
 
-  isDirectory(relativePath, entry) {
+  isDirectory(relativePath: string, entry: Entry) {
     if (this.inputPaths === undefined) {
       return false;
     }
@@ -359,7 +419,7 @@ module.exports = class Filter extends Plugin {
     return (entry || this.input.lstatSync(relativePath)).isDirectory();
   }
 
-  getDestFilePath(relativePath, entry) {
+  getDestFilePath(relativePath: string, entry: Entry) {
     // NOTE: relativePath may have been moved or unlinked
     if (this.isDirectory(relativePath, entry)) {
       return null;
@@ -382,7 +442,7 @@ module.exports = class Filter extends Plugin {
     return null;
   }
 
-  async processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, instrumentation) {
+  async processAndCacheFile(srcDir: string, destDir: string, entry: Entry, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema): Promise<string | ProcessStringResult | undefined> {
     let filter = this;
     let relativePath = entry.relativePath;
     try {
@@ -396,7 +456,7 @@ module.exports = class Filter extends Plugin {
     }
   }
 
-  async processFile(srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry) {
+  async processFile(_srcDir: string, _destDir: string, relativePath: string, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema, entry: Entry): Promise<string | ProcessStringResult | undefined> {
     let filter = this;
     let inputEncoding = this.inputEncoding;
     let outputEncoding = this.outputEncoding;
@@ -410,8 +470,9 @@ module.exports = class Filter extends Plugin {
 
     instrumentation.processString++;
     let processStringStart = process.hrtime();
-    let outputString = await invoke(this.processor, this.processor.processString, [this, contents, relativePath, forceInvalidation, instrumentation]);
+    let output = await invoke(this.processor, this.processor.processString, [this, contents, relativePath, forceInvalidation, instrumentation]);
     instrumentation.processStringTime += nanosecondsSince(processStringStart);
+    let outputString = typeof output === 'string' ? output : output.output;
     let outputPath = filter.getDestFilePath(relativePath, entry);
 
     if (outputPath == null) {
@@ -447,21 +508,23 @@ module.exports = class Filter extends Plugin {
       }
     }
 
-    return outputString;
+    return output;
   }
 
   /**
-   * @param contents {string}
-   * @param relativePath {string}
+   * @param _contents {string}
+   * @param _relativePath {string}
    * @returns {string}
    */
-  processString(contents, relativePath) { // jshint ignore:line
+  processString(_contents: string, _relativePath: string): string | ProcessStringResult | Promise<string | ProcessStringResult> {
     throw new Error(
         '[BroccoliPersistentFilter] When subclassing broccoli-persistent-filter you must implement the ' +
         '`processString()` method.');
   }
 
-  postProcess(result /*, relativePath */) {
+  postProcess(result: ProcessStringResult, _relativePath: string) {
     return result;
   }
-};
+}
+
+export = Filter;

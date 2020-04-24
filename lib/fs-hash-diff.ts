@@ -2,29 +2,26 @@
 "use strict";
 
 // Imported for type annotations.
-const Entry = require("fs-tree-diff/lib/entry").default; // jshint ignore:line
-const FSTree = require("fs-tree-diff");
+import FSTree from "fs-tree-diff";
+import Entry from "fs-tree-diff/lib/entry";
 
-class HashEntry {
-  /**
-   * @param relativePath {string}
-   * @param hash {string}
-   */
-  constructor(relativePath, hash) {
+export class HashEntry {
+  relativePath: string;
+  hash: string;
+
+  constructor(relativePath: string, hash: string) {
     this.relativePath = relativePath;
     this.hash = hash;
   }
 
-  isDirectory() {
+  isDirectory(): boolean {
     return false;
   }
 
   /**
    * Whether the entries have the same content.
-   * @param other {unknown}
-   * @returns
    */
-  equals(other) {
+  equals(other: unknown): boolean {
     if (other instanceof HashEntry) {
       return this.hash === other.hash;
     } else {
@@ -33,22 +30,17 @@ class HashEntry {
   }
 }
 
-class FSHashTree extends FSTree {
+export class FSHashTree extends FSTree<Entry | HashEntry> {
   /**
    * Creates an instance of FSHashTree.
    * @param [options] {{entries?: Array<Entry|HashEntry>, sortAndExpand?: boolean}}
    */
-  constructor(options) {
+  constructor(options: ConstructorParameters<typeof FSTree>[0]) {
     super(options);
     /** @type Array<Entry|HashEntry> */
-    this.entries = options.entries || [];
+    this.entries = options?.entries || [];
   }
-  /**
-   * @param entryA {HashEntry | Entry}
-   * @param entryB {HashEntry | Entry}
-   * @returns {boolean}
-   */
-  static defaultIsEqual(entryA, entryB) {
+  static defaultIsEqual(entryA: HashEntry | Entry, entryB: HashEntry | Entry): boolean {
     if (entryA instanceof HashEntry) {
       return entryA.equals(entryB);
     } else if (entryB instanceof HashEntry) {
@@ -58,20 +50,10 @@ class FSHashTree extends FSTree {
     }
   }
 
-  /**
-   * @param entries {Array<HashEntry | Entry>}
-   * @param [options] {{sortAndExpand?: boolean}}
-   * @returns {FSHashTree}
-   */
-  static fromHashEntries(entries, options = {sortAndExpand: true}) {
+  static fromHashEntries(entries: Array<HashEntry | Entry>, options = {sortAndExpand: true}): FSHashTree {
     return new FSHashTree({
       entries,
       sortAndExpand: options.sortAndExpand
     });
   }
 }
-
-module.exports = {
-  HashEntry,
-  FSHashTree
-};

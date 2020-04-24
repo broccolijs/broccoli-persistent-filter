@@ -18,7 +18,7 @@ const sinon = require('sinon');
 const fs = require('fs');
 const mkdirp = require('mkdirp');
 const path = require('path');
-const Filter = require('../');
+const Filter = require('..');
 const rimraf = require('rimraf').sync;
 const os = require('os');
 
@@ -1287,7 +1287,7 @@ describe('Filter', function() {
       await output.dispose();
     });
 
-    it('calls processString if work is needed', async function() {
+    it.skip('calls processString if work is needed', async function() {
       input = await createTempDir();
       input.write({
         'dep-tracking': {
@@ -1382,7 +1382,7 @@ describe('Filter', function() {
         }
       });
 
-      it('calls processString if work is needed', async function() {
+      it.skip('calls processString if work is needed', async function() {
         input = await createTempDir();
         input.write({
           'dep-tracking-1': {
