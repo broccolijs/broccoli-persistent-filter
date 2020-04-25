@@ -1,15 +1,15 @@
 /// @ts-check
-"use strict";
+'use strict';
 
-import * as path from "path";
-import * as fs from "fs";
-import FSTree = require("fs-tree-diff");
-import Entry from "fs-tree-diff/lib/entry";
-import { HashEntry, FSHashTree } from "./fs-hash-diff";
-import md5sum = require("./md5-hex");
+import * as path from 'path';
+import * as fs from 'fs';
+import FSTree = require('fs-tree-diff');
+import Entry from 'fs-tree-diff/lib/entry';
+import { HashEntry, FSHashTree } from './fs-hash-diff';
+import md5sum = require('./md5-hex');
 
 namespace Dependencies {
-  export type FSFacade = Pick<typeof fs, "readFileSync" | "statSync">;
+  export type FSFacade = Pick<typeof fs, 'readFileSync' | 'statSync'>;
   export interface Options {
     fs: FSFacade;
   }
@@ -164,7 +164,7 @@ class Dependencies {
    */
   countUnique() {
     if (!this.sealed) {
-      throw new Error("Cannot count dependencies until after sealing them.");
+      throw new Error('Cannot count dependencies until after sealing them.');
     } else {
       return this.dependentsMap.size;
     }
@@ -181,7 +181,7 @@ class Dependencies {
   setDependencies(filePath: string, dependencies: Array<string>) {
     filePath = path.normalize(filePath);
     if (this.sealed) {
-      throw new Error("Cannot set dependencies when sealed");
+      throw new Error('Cannot set dependencies when sealed');
     }
     let absoluteDeps = new Array<string>();
     let fileDir = path.dirname(filePath);
@@ -232,7 +232,7 @@ class Dependencies {
    */
   getDependencyState() {
     if (!this.sealed) {
-      throw new Error("Cannot compute dependency state with unsealed dependencies.");
+      throw new Error('Cannot compute dependency state with unsealed dependencies.');
     }
     /** @type {Map<string, FSTree<Entry> | FSHashTree>} */
     let fsTrees = new Map();
@@ -260,7 +260,7 @@ class Dependencies {
     let currentState = this.getDependencyState();
     for (let fsRoot of this.allDependencies.keys()) {
       let oldTree = this.fsTrees.get(fsRoot);
-      if (!oldTree) throw new Error("internal error");
+      if (!oldTree) throw new Error('internal error');
       let currentTree = currentState.get(fsRoot);
       let patch: FSTree.Patch;
       // typescript doesn't think these calculatePatch methods are the same
@@ -305,13 +305,13 @@ class Dependencies {
       for (let entry of fsTree.entries) {
         if (entry instanceof HashEntry) {
           entries.push({
-            type: "hash",
+            type: 'hash',
             relativePath: entry.relativePath,
             hash: entry.hash,
           });
         } else {
           entries.push({
-            type: "stat",
+            type: 'stat',
             relativePath: entry.relativePath,
             size: entry.size!,
             mtime: +entry.mtime!,
@@ -361,7 +361,7 @@ class Dependencies {
     for (let fsTreeData of dependencyData.fsTrees) {
       let entries = new Array<Entry | HashEntry>();
       for (let entry of fsTreeData.entries) {
-        if (entry.type === "stat") {
+        if (entry.type === 'stat') {
           entries.push(new Entry(entry.relativePath, entry.size, entry.mtime, entry.mode));
         } else {
           entries.push(new HashEntry(entry.relativePath, entry.hash));
@@ -403,14 +403,14 @@ function getHashTree(fsRoot: string, dependencies: Set<string>, fs: Dependencies
       // the read that accompanies `processString()` (if any).
       let contents;
       try {
-        contents = fs.readFileSync(fullPath, "utf8");
+        contents = fs.readFileSync(fullPath, 'utf8');
       } catch (e) {
-        contents = fs.readFileSync(dependency, "utf8");
+        contents = fs.readFileSync(dependency, 'utf8');
       }
       let hash = md5sum(contents);
       entries.push(new HashEntry(dependency, hash));
     } catch(e) {
-      entries.push(new HashEntry(dependency, ""));
+      entries.push(new HashEntry(dependency, ''));
     }
   }
   return FSHashTree.fromHashEntries(entries);

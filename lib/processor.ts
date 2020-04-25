@@ -1,5 +1,5 @@
 import defaultProcessor = require('./strategies/default');
-import { Strategy, Context, InstrumentationSchema} from "./strategies/strategy";
+import { Strategy, Context, InstrumentationSchema} from './strategies/strategy';
 import Dependencies = require('./dependencies');
 
 namespace Processor {

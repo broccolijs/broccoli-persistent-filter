@@ -1,4 +1,4 @@
-import { Context, ProcessStringResult, Strategy } from "./strategy";
+import { Context, ProcessStringResult, Strategy } from './strategy';
 import Dependencies = require('../dependencies');
 import assertNever from '../util/assertNever';
 

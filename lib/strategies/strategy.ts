@@ -2,7 +2,7 @@ import Dependencies = require('../dependencies');
 
 // TODO: ProcessStringResult and Context should be template types so that the
 // consumer can strongly type their data.
-export type ProcessStringResult<Data = {}> = Record<"output", string> & Data;
+export type ProcessStringResult<Data = {}> = Record<'output', string> & Data;
 
 export interface Context {
   processString(contents: string, relativePath: string): string | ProcessStringResult | Promise<string | ProcessStringResult>;
