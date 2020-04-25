@@ -68,12 +68,12 @@ class DerivePatchesSchema {
     this.entries = 0;
     this.walk = {
       entries: 0,
-      duration: ""
+      duration: ''
     };
     this.invalidations = {
       dependencies: 0,
       count: 0,
-      duration: "",
+      duration: '',
     };
   }
 }
@@ -287,7 +287,7 @@ abstract class Filter extends Plugin {
         let relativePath = patch[1];
         let entry = patch[2];
         if (!entry) {
-          throw new Error("internal error");
+          throw new Error('internal error');
         }
         let outputPath = this.getDestFilePath(relativePath, entry) || relativePath || './';
         let outputFilePath = outputPath;
@@ -476,9 +476,9 @@ abstract class Filter extends Plugin {
     let outputPath = filter.getDestFilePath(relativePath, entry);
 
     if (outputPath == null) {
-      throw new Error('[BroccoliPersistentFilter] canProcessFile("' + relativePath +
-                      '") is true, but getDestFilePath("' +
-                      relativePath + '") is null');
+      throw new Error('[BroccoliPersistentFilter] canProcessFile('' + relativePath +
+                      '') is true, but getDestFilePath('' +
+                      relativePath + '') is null');
     }
 
     if (isChange) {

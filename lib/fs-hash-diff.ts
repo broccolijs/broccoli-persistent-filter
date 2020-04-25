@@ -1,9 +1,9 @@
 /// @ts-check
-"use strict";
+'use strict';
 
 // Imported for type annotations.
-import FSTree from "fs-tree-diff";
-import Entry from "fs-tree-diff/lib/entry";
+import FSTree from 'fs-tree-diff';
+import Entry from 'fs-tree-diff/lib/entry';
 
 export class HashEntry {
   relativePath: string;

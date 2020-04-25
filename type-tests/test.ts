@@ -1,6 +1,6 @@
-import * as path from "path";
-import Filter = require("broccoli-persistent-filter");
-import { ProcessStringResult } from "../lib/strategies/strategy";
+import * as path from 'path';
+import Filter = require('broccoli-persistent-filter');
+import { ProcessStringResult } from '../lib/strategies/strategy';
 
 class PathAnnotator extends Filter {
   processString(contents: string, relativePath: string) {
@@ -8,7 +8,7 @@ class PathAnnotator extends Filter {
   }
   canProcessFile(relativePath: string): boolean {
     const ext = path.extname(relativePath);
-    return ext === ".css" || ext === ".js";
+    return ext === '.css' || ext === '.js';
   }
 }
 
@@ -17,7 +17,7 @@ class PathAnnotator extends Filter {
 class LazyPathAnnotator extends Filter {
   canProcessFile(relativePath: string): boolean {
     const ext = path.extname(relativePath);
-    return ext === ".css" || ext === ".js";
+    return ext === '.css' || ext === '.js';
   }
   processString(contents: string, relativePath: string) {
     return new Promise((resolve) => {
@@ -46,7 +46,7 @@ class MyPostProcessingFilter extends Filter {
   }
   postProcess(results: ProcessStringResult & MyCustomProcessingData, relativePath: string) {
     // It should be legal to set the output.
-    results.output = "Updated output";
+    results.output = 'Updated output';
     const numBytes = results.byteCount; // $ExpectType number
     if (numBytes > 1024) {
       // it should be valid to only return the output (without custom data)
