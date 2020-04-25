@@ -14,12 +14,7 @@ const DefaultStrategy: Strategy = {
       normalizedValue = output;
     }
 
-    let result;
-    if (ctx.postProcess) {
-      result = await ctx.postProcess(normalizedValue, relativePath);
-    } else {
-      result = normalizedValue;
-    }
+    let result = await ctx.postProcess(normalizedValue, relativePath);
 
     if (result === undefined) {
       assertNever(result, 'You must return an object from `Filter.prototype.postProcess`.');

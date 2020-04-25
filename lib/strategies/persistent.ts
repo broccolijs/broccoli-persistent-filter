@@ -71,12 +71,7 @@ const PersistentStrategy: IPersistentStrategy = {
       await nativePromise(cache.set(key, stringValue));
     }
 
-    let result;
-    if (ctx.postProcess) {
-      result = await ctx.postProcess(value, relativePath);
-    } else {
-      result = value;
-    }
+    let result = await ctx.postProcess(value, relativePath);
 
     if (result === undefined) {
       assertNever(result, 'You must return an object from `Filter.prototype.postProcess`.');

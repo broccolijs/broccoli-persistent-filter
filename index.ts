@@ -522,7 +522,7 @@ abstract class Filter extends Plugin {
         '`processString()` method.');
   }
 
-  postProcess(result: ProcessStringResult, _relativePath: string) {
+  postProcess(result: ProcessStringResult, _relativePath: string): ProcessStringResult | Promise<ProcessStringResult> {
     return result;
   }
 }

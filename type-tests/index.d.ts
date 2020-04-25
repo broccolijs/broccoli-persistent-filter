@@ -1,4 +1,4 @@
-// TypeScript Version: 3.8
+// Minimum TypeScript Version: 3.8
 
 /**
  * This file is just to create an "import target" for the type-tests
