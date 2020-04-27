@@ -5,16 +5,16 @@
   "author": "Stefan Penner <stefan.penner@gmail.com>",
   "main": "index.js",
   "files": [
-    "index.js",
-    "index.d.ts",
-    "index.js.map",
+    "index.*",
     "lib/"
   ],
   "scripts": {
-    "prepare": "tsc -b",
+    "prepare": "yarn build",
+    "pretest": "yarn build",
+    "build": "tsc -b",
     "watch": "tsc --watch .",
     "clean": "tsc -b --clean .",
-    "test": "yarn prepare && yarn test:js && yarn test:types",
+    "test": "yarn test:js && yarn test:types",
     "test:coverage": "istanbul cover --config=test/istanbul.yml _mocha",
     "test:debug": "yarn build && yarn test:js:debug",
     "test:js": "mocha --require source-map-support/register  test/*-test.js",
