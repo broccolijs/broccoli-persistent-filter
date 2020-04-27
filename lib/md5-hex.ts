@@ -10,7 +10,6 @@ function md5sum(input: Buffer | string | Array<Buffer | string>): string {
    * @param buf {}
    */
   function update(buf: Buffer | string) {
-    /** @type {'utf8' | undefined} */
     if (typeof buf === 'string') {
       hash.update(buf, 'utf8');
     } else {

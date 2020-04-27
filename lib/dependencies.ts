@@ -10,40 +10,42 @@ import md5sum = require('./md5-hex');
 
 namespace Dependencies {
   export type FSFacade = Pick<typeof fs, 'readFileSync' | 'statSync'>;
+
   export interface Options {
     fs: FSFacade;
   }
+
+  export interface SerializedTreeEntry {
+    relativePath: string;
+  }
+
+  export interface SerializedStatEntry {
+    type: 'stat';
+    size: number;
+    mtime: number;
+    mode: number;
+  }
+
+  export interface SerializedHashEntry {
+    type: 'hash';
+    hash: string;
+  }
+
+  export type SerializedEntry = SerializedTreeEntry
+    & (SerializedStatEntry | SerializedHashEntry);
+
+  export type SerializedTree = {
+    fsRoot: string,
+    entries: Array<SerializedEntry>
+  }
+  export interface SerializedDependencies {
+    rootDir: string;
+    fsTrees: Array<SerializedTree>;
+    dependencies: Record<string, Array<string>>;
+  }
 }
 
-interface SerializedTreeEntry {
-  relativePath: string;
-}
 
-interface SerializedStatEntry {
-  type: 'stat';
-  size: number;
-  mtime: number;
-  mode: number;
-}
-
-interface SerializedHashEntry {
-  type: 'hash';
-  hash: string;
-}
-
-type SerializedEntry = SerializedTreeEntry
-                     & (SerializedStatEntry | SerializedHashEntry);
-
-type SerializedTree = {
-  fsRoot: string,
-  entries: Array<SerializedEntry>
-}
-
-interface SerializedDependencies {
-  rootDir: string;
-  fsTrees: Array<SerializedTree>;
-  dependencies: Record<string, Array<string>>;
-}
 
 class Dependencies {
   /**
@@ -95,7 +97,6 @@ class Dependencies {
      * Custom fs object can be passed to the custructor.
      * This helps us to pass the this.input of the broccoli-plugin
      * to keep the encapsulations.
-     * @type {typeof fs}
      */
     this.fs = options.fs || fs;
   }
@@ -111,8 +112,7 @@ class Dependencies {
     this.dependencyMap.forEach((deps, referer) => {
       for (let i = 0; i < deps.length; i++) {
         // Build a unified set of dependencies for the entire tree
-        /** @type {string} */
-        let depRoot;
+        let depRoot: string;
         if (deps[i].startsWith(this.rootDir + path.sep)) {
           depRoot = this.rootDir;
         } else {
@@ -234,12 +234,10 @@ class Dependencies {
     if (!this.sealed) {
       throw new Error('Cannot compute dependency state with unsealed dependencies.');
     }
-    /** @type {Map<string, FSTree<Entry> | FSHashTree>} */
-    let fsTrees = new Map();
+    let fsTrees = new Map<string, FSTree<Entry> | FSHashTree>();
     for (let fsRoot of this.allDependencies.keys()) {
       let dependencies = this.allDependencies.get(fsRoot)!;
-      /** @type {FSTree<Entry> | FSHashTree} */
-      let fsTree;
+      let fsTree: FSTree<Entry> | FSHashTree;
       if (fsRoot === this.rootDir) {
         fsTree = getHashTree(fsRoot, dependencies, this.fs);
       } else {
@@ -261,7 +259,7 @@ class Dependencies {
     for (let fsRoot of this.allDependencies.keys()) {
       let oldTree = this.fsTrees.get(fsRoot);
       if (!oldTree) throw new Error('internal error');
-      let currentTree = currentState.get(fsRoot);
+      let currentTree = currentState.get(fsRoot)!;
       let patch: FSTree.Patch;
       // typescript doesn't think these calculatePatch methods are the same
       // enough to call them from a single code path. I think it's a typescript
@@ -292,16 +290,15 @@ class Dependencies {
    * used to invalidate files during the next build in a new process.
    * @return {{rootDir: string, dependencies: {[k: string]: string[]}, fsTrees: Array<{fsRoot: string, entries: Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>}>}}
    */
-  serialize(): SerializedDependencies {
+  serialize(): Dependencies.SerializedDependencies {
     let dependencies: Record<string, Array<string>> = {};
     this.dependencyMap.forEach((deps, filePath) => {
       dependencies[filePath] = deps;
     });
-    let fsTrees = new Array<SerializedTree>();
+    let fsTrees = new Array<Dependencies.SerializedTree>();
     for (let fsRoot of this.fsTrees.keys()) {
       let fsTree = this.fsTrees.get(fsRoot)!;
-      /** @type {Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>} */
-      let entries = new Array<SerializedEntry>();
+      let entries = new Array<Dependencies.SerializedEntry>();
       for (let entry of fsTree.entries) {
         if (entry instanceof HashEntry) {
           entries.push({
@@ -340,7 +337,7 @@ class Dependencies {
    * @param customFS {typeof fs}. A customFS method to support fs facade change in broccoli-plugin.
    * @return {Dependencies};
    */
-  static deserialize(dependencyData: SerializedDependencies, newRootDir: string, customFS: Dependencies.FSFacade) {
+  static deserialize(dependencyData: Dependencies.SerializedDependencies, newRootDir: string, customFS: Dependencies.FSFacade) {
     let oldRootDir = dependencyData.rootDir;
     newRootDir = path.normalize(newRootDir || oldRootDir);
     let dependencies = new Dependencies(newRootDir, { fs: customFS });

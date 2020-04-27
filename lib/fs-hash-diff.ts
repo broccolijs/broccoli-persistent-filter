@@ -37,7 +37,6 @@ export class FSHashTree extends FSTree<Entry | HashEntry> {
    */
   constructor(options: ConstructorParameters<typeof FSTree>[0]) {
     super(options);
-    /** @type Array<Entry|HashEntry> */
     this.entries = options?.entries || [];
   }
   static defaultIsEqual(entryA: HashEntry | Entry, entryB: HashEntry | Entry): boolean {

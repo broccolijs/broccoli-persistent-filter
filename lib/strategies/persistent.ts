@@ -87,8 +87,7 @@ const PersistentStrategy: IPersistentStrategy = {
     let result = this._syncCache!.get<string>('__dependencies__');
     let dependencies;
     if (result.isCached) {
-      /** @type {ReturnType<Dependencies['serialize']>} */
-      let data = JSON.parse(result.value);
+      let data: Dependencies.SerializedDependencies = JSON.parse(result.value);
       dependencies = Dependencies.deserialize(data, srcDir, options.fs);
     } else {
       // Dependencies start out empty; they are sealed as if they came from
