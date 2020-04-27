@@ -32,7 +32,7 @@ interface SerializedHashEntry {
 }
 
 type SerializedEntry = SerializedTreeEntry
-                     & ( SerializedStatEntry | SerializedHashEntry);
+                     & (SerializedStatEntry | SerializedHashEntry);
 
 type SerializedTree = {
   fsRoot: string,
