@@ -54,7 +54,7 @@ class MyPostProcessingFilter extends Filter {
         output: results.output.substring(0, 1024),
       }
     } else {
-      // it should also be return the output with the custom data.
+      // it should also be able to return the output with the custom data.
       // even though that data won't be used by anything else now.
       return results;
     }
