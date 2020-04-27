@@ -1287,11 +1287,11 @@ describe('Filter', function() {
       await output.dispose();
     });
 
-    it.skip('calls processString if work is needed', async function() {
+    it('calls processString if work is needed', async function() {
       input = await createTempDir();
       input.write({
         'dep-tracking': {
-          'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
+          'has-inlines.js': `// << ./local.js\n// << ${input.path('external-deps/external.js')}\n`,
           'local.js': `console.log('local');\n`,
           'unrelated-file.js': `console.log('pay me no mind.')\n`
         },
@@ -1340,7 +1340,7 @@ describe('Filter', function() {
       input.write({
         'dep-tracking': {
           'local.js': null,
-          'has-inlines.js': `// << ../external-deps/external.js\n`
+          'has-inlines.js': `// << ${input.path('external-deps/external.js')}\n`
         }
       });
 
@@ -1382,21 +1382,21 @@ describe('Filter', function() {
         }
       });
 
-      it.skip('calls processString if work is needed', async function() {
+      it('calls processString if work is needed', async function() {
         input = await createTempDir();
         input.write({
           'dep-tracking-1': {
-            'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
+            'has-inlines.js': `// << ./local.js\n// << ${input.path('external-deps/external.js')}\n`,
             'local.js': `console.log('local');\n`,
             'unrelated-file.js': `console.log('pay me no mind.')\n`
           },
           'dep-tracking-2': {
-            'has-inlines.js': `// << ./local.js\n// << ../external-deps/external.js\n`,
+            'has-inlines.js': `// << ./local.js\n// << ${input.path('external-deps/external.js')}\n`,
             'local.js': `console.log('local changed');\n`,
             'unrelated-file.js': `console.log('pay me no mind.')\n`
           },
           'dep-tracking-3': {
-            'has-inlines.js': `// << ../external-deps/external.js\n`,
+            'has-inlines.js': `// << ${input.path('external-deps/external.js')}\n`,
             'local.js': null,
             'unrelated-file.js': `console.log('pay me no mind.')\n`
           },

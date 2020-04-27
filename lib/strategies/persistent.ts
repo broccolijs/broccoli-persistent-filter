@@ -1,11 +1,11 @@
-import { Context, ProcessStringResult, Strategy, InstrumentationSchema } from './strategy';
+import { Context, ProcessStringResult, Strategy, InstrumentationSchema } from "./strategy";
 import AsyncDiskCache = require('async-disk-cache');
 import SyncDiskCache = require('sync-disk-cache');
 import Dependencies = require('../dependencies');
 import Rimraf = require('rimraf');
-import * as process from 'process';
-import nativePromise from '../util/nativePromise';
-import assertNever from '../util/assertNever';
+import * as process from "process";
+import nativePromise from "../util/nativePromise";
+import assertNever from "../util/assertNever";
 
 const rimraf = Rimraf.sync;
 
@@ -83,17 +83,17 @@ const PersistentStrategy: IPersistentStrategy = {
    * By default initial dependencies are empty.
    * @returns {Dependencies}
    */
-  initialDependencies(srcDir, options) {
+  initialDependencies(rootFS: Dependencies.FSFacade, inputEncoding: string): Dependencies {
     let result = this._syncCache!.get<string>('__dependencies__');
     let dependencies;
     if (result.isCached) {
       /** @type {ReturnType<Dependencies['serialize']>} */
       let data = JSON.parse(result.value);
-      dependencies = Dependencies.deserialize(data, srcDir, options.fs);
+      dependencies = Dependencies.deserialize(data, rootFS, inputEncoding);
     } else {
       // Dependencies start out empty; they are sealed as if they came from
       // the previous build iteration.
-      dependencies = new Dependencies(srcDir);
+      dependencies = new Dependencies(rootFS, inputEncoding);
       dependencies.seal().captureDependencyState();
     }
    return dependencies;

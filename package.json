@@ -16,10 +16,10 @@
     "clean": "tsc -b --clean .",
     "test": "yarn prepare && yarn test:js && yarn test:types",
     "test:coverage": "istanbul cover --config=test/istanbul.yml _mocha",
-    "test:debug": "yarn build && yarn test:js:debug",
+    "test:debug": "yarn prepare && yarn test:js:debug",
     "test:js": "mocha --require source-map-support/register  test/*-test.js",
     "test:types": "dtslint type-tests",
-    "test:js:debug": "mocha --require source-map-support/register  debug test/*-test.js"
+    "test:js:debug": "mocha --require source-map-support/register debug test/*-test.js"
   },
   "license": "MIT",
   "repository": {
@@ -65,6 +65,7 @@
     "co": "^4.6.0",
     "coveralls": "^3.0.9",
     "dtslint": "^3.4.1",
+    "fs-merger": "^3.0.2",
     "istanbul": "^0.4.2",
     "minimatch": "^3.0.2",
     "mocha-jshint": "^2.3.1",

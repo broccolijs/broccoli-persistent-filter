@@ -7,12 +7,19 @@ import FSTree = require('fs-tree-diff');
 import Entry from 'fs-tree-diff/lib/entry';
 import { HashEntry, FSHashTree } from './fs-hash-diff';
 import md5sum = require('./md5-hex');
+import { resolve } from 'dns';
+import type FSMerger from 'fs-merger';
+import resolveRelative from './util/resolveRelative';
+
+const LOCAL_PATH: unique symbol = Symbol('Local Filesystem');
+const EXTERNAL_PATH: unique symbol = Symbol('External Filesystem');
+
+type PathTag = typeof LOCAL_PATH | typeof EXTERNAL_PATH;
 
 namespace Dependencies {
-  export type FSFacade = Pick<typeof fs, 'readFileSync' | 'statSync'>;
-  export interface Options {
-    fs: FSFacade;
-  }
+  export type FSFacade =
+    Pick<typeof fs, 'readFileSync' | 'statSync' | 'existsSync'>
+    & Pick<FSMerger.FS, 'relativePathTo'>;
 }
 
 interface SerializedTreeEntry {
@@ -34,18 +41,30 @@ interface SerializedHashEntry {
 type SerializedEntry = SerializedTreeEntry
                      & ( SerializedStatEntry | SerializedHashEntry);
 
+interface SerializedExternalRoot {
+  type: 'external';
+  rootDir: string;
+}
+
+interface SerializedLocalRoot {
+  type: 'local';
+}
+
+type SerializedRoot = SerializedExternalRoot | SerializedLocalRoot;
+
 type SerializedTree = {
-  fsRoot: string,
+  fsRoot: SerializedRoot,
   entries: Array<SerializedEntry>
 }
 
 interface SerializedDependencies {
-  rootDir: string;
   fsTrees: Array<SerializedTree>;
   dependencies: Record<string, Array<string>>;
 }
 
 class Dependencies {
+  // This is exposed for testing purposes
+  static __LOCAL_ROOT = LOCAL_PATH;
   /**
    * Tracks whether new dependencies can be added.
    **/
@@ -54,29 +73,36 @@ class Dependencies {
    * The root directory containing the files that have dependencies. Relative
    * paths are resolved against this directory.
    */
-  private rootDir: string;
+  private rootFS: Dependencies.FSFacade;
   /**
    * Tracks dependencies on a per file basis.
-   * The key is a relative path, values are absolute paths.
+   *
+   * The key is a relative path.
+   *
+   * The value is:
+   *   - an absolute path if the Path tag is EXTERNAL_PATH.
+   *   - an relative path if the Path tag is LOCAL_PATH.
    **/
-  private dependencyMap: Map<string, Array<string>>;
+  private dependencyMap: Map<string, Array<[PathTag, string]>>;
   /**
    * Map of filesystem roots to unique dependencies on that filesystem. This
    * property is only populated once `seal()` is called. This allows us to
    * build an FSTree (which requires relative paths) per filesystem root.
    */
-  private allDependencies: Map<string, Set<string>>;
+  private allDependencies: Map<string | typeof LOCAL_PATH, Set<string>>;
   /**
    * Map of filesystem roots to FSTrees, capturing the state of all
    * dependencies.
    */
-  private fsTrees: Map<string, FSTree<Entry>|FSHashTree>;
+  private fsTrees: Map<string | typeof LOCAL_PATH, FSTree<Entry>|FSHashTree>;
   /**
-   * Maps dependencies to the files that depend on them.
-   * Keys are absolute paths, values are paths relative to the `rootDir`.
+   * Maps dependencies to the local files that depend on them.
+   * Keys that are relative are relative to the local tree. Absolute paths are
+   * external to the local tree.
+   * Values are paths relative to the local tree.
    */
   dependentsMap: Map<string, string[]>;
-  fs: Dependencies.FSFacade;
+  inputEncoding: string;
 
   /**
    * Creates an instance of Dependencies.
@@ -84,20 +110,14 @@ class Dependencies {
    *   have dependencies. Relative paths are resolved against this directory.
    * @param options options is used to pass the custom fs opertations implementations
    */
-  constructor(rootDir: string, options: Partial<Dependencies.Options> = {}) {
+  constructor(rootFS: Dependencies.FSFacade, inputEncoding: string) {
+    this.inputEncoding = inputEncoding;
+    this.rootFS = rootFS;
     this.sealed = false;
-    this.rootDir = path.normalize(rootDir);
-    this.dependencyMap = new Map<string, Array<string>>();
+    this.dependencyMap = new Map<string, Array<[PathTag, string]>>();
     this.allDependencies = new Map<string, Set<string>>();
     this.fsTrees = new Map<string, FSTree<Entry>|FSHashTree>();
     this.dependentsMap = new Map<string, Array<string>>();
-    /**
-     * Custom fs object can be passed to the custructor.
-     * This helps us to pass the this.input of the broccoli-plugin
-     * to keep the encapsulations.
-     * @type {typeof fs}
-     */
-    this.fs = options.fs || fs;
   }
 
   /**
@@ -109,24 +129,24 @@ class Dependencies {
     if (this.sealed) return this;
     this.sealed = true;
     this.dependencyMap.forEach((deps, referer) => {
-      for (let i = 0; i < deps.length; i++) {
-        // Build a unified set of dependencies for the entire tree
-        /** @type {string} */
-        let depRoot;
-        if (deps[i].startsWith(this.rootDir + path.sep)) {
-          depRoot = this.rootDir;
+      for (let [tag, dep] of deps) {
+        let depRoot: string | typeof LOCAL_PATH;
+        if (tag === LOCAL_PATH) {
+          depRoot = LOCAL_PATH;
+          let depsForRoot = this._getDepsForRoot(depRoot);
+          depsForRoot.add(dep);
         } else {
-          depRoot = path.parse(deps[i]).root;
+          depRoot = path.parse(dep).root;
+          let depsForRoot = this._getDepsForRoot(depRoot);
+          depsForRoot.add(path.relative(depRoot, dep));
         }
-        let depsForRoot = this._getDepsForRoot(depRoot);
-        depsForRoot.add(path.relative(depRoot, deps[i]));
 
         // Create an inverse map so that when a dependency is invalidated
         // we can track it back to the file that should be processed again.
-        let dependents = this.dependentsMap.get(deps[i]);
+        let dependents = this.dependentsMap.get(dep);
         if (!dependents) {
           dependents = [];
-          this.dependentsMap.set(deps[i], dependents);
+          this.dependentsMap.set(dep, dependents);
         }
         dependents.push(referer);
       }
@@ -134,7 +154,7 @@ class Dependencies {
     return this;
   }
 
-  _getDepsForRoot(dir: string) {
+  _getDepsForRoot(dir: string | typeof LOCAL_PATH) {
     let depsForRoot = this.allDependencies.get(dir);
     if (!depsForRoot) {
       depsForRoot = new Set();
@@ -183,16 +203,23 @@ class Dependencies {
     if (this.sealed) {
       throw new Error('Cannot set dependencies when sealed');
     }
-    let absoluteDeps = new Array<string>();
+    let fileDeps = new Array<[PathTag, string]>();
     let fileDir = path.dirname(filePath);
-    for (let i = 0; i < dependencies.length; i++) {
-      let depPath = path.normalize(dependencies[i]);
-      if (!path.isAbsolute(depPath)) {
-        depPath = path.resolve(this.rootDir, fileDir, depPath);
+    for (let dep of dependencies) {
+      if (path.isAbsolute(dep)) {
+        let localPath = this.rootFS.relativePathTo(dep);
+        if (localPath) {
+          fileDeps.push([LOCAL_PATH, localPath.relativePath]);
+        } else {
+          fileDeps.push([EXTERNAL_PATH, dep]);
+        }
+      } else {
+        let depPath = resolveRelative(fileDir, dep);
+        let tag = path.isAbsolute(depPath) ? EXTERNAL_PATH : LOCAL_PATH;
+        fileDeps.push([tag, depPath]);
       }
-      absoluteDeps.push(depPath);
     }
-    this.dependencyMap.set(filePath, absoluteDeps);
+    this.dependencyMap.set(filePath, fileDeps);
   }
 
   /**
@@ -207,10 +234,10 @@ class Dependencies {
    */
   copyWithout(files: Array<string>) {
     files = files.map(f => path.normalize(f));
-    let newDeps = new Dependencies(this.rootDir, { fs: this.fs });
+    let newDeps = new Dependencies(this.rootFS, this.inputEncoding);
     for (let file of this.dependencyMap.keys()) {
       if (!files.includes(file)) {
-        newDeps.setDependencies(file, this.dependencyMap.get(file)!);
+        newDeps.dependencyMap.set(file, this.dependencyMap.get(file)!);
       }
     }
     return newDeps;
@@ -240,10 +267,10 @@ class Dependencies {
       let dependencies = this.allDependencies.get(fsRoot)!;
       /** @type {FSTree<Entry> | FSHashTree} */
       let fsTree;
-      if (fsRoot === this.rootDir) {
-        fsTree = getHashTree(fsRoot, dependencies, this.fs);
+      if (fsRoot === LOCAL_PATH) {
+        fsTree = getHashTree(this.rootFS, dependencies, this.inputEncoding);
       } else {
-        fsTree = getStatTree(fsRoot, dependencies, this.fs);
+        fsTree = getStatTree(fsRoot, dependencies);
       }
       fsTrees.set(fsRoot, fsTree);
     }
@@ -272,8 +299,13 @@ class Dependencies {
         patch = oldTree.calculatePatch(currentTree);
       }
       for (let operation of patch) {
-        let depPath = path.join(fsRoot, operation[1]);
-        let dependents = this.dependentsMap.get(depPath);
+        let depPath = operation[1];
+        let dependents;
+        if (fsRoot === LOCAL_PATH) {
+          dependents = this.dependentsMap.get(depPath);
+        } else {
+          dependents = this.dependentsMap.get(fsRoot + depPath);
+        }
         if (!dependents) { continue; }
         for (let dep of dependents) {
           invalidated.add(dep);
@@ -295,11 +327,24 @@ class Dependencies {
   serialize(): SerializedDependencies {
     let dependencies: Record<string, Array<string>> = {};
     this.dependencyMap.forEach((deps, filePath) => {
-      dependencies[filePath] = deps;
+      dependencies[filePath] = deps.map(([tag, dep]) => {
+        let isAbsolute = path.isAbsolute(dep);
+        if (isAbsolute && tag === LOCAL_PATH ||
+            !isAbsolute && tag === EXTERNAL_PATH) {
+              throw new Error('internal error');
+        }
+        return dep;
+      });
     });
     let fsTrees = new Array<SerializedTree>();
-    for (let fsRoot of this.fsTrees.keys()) {
-      let fsTree = this.fsTrees.get(fsRoot)!;
+    for (let rootDir of this.fsTrees.keys()) {
+      let fsRoot: SerializedLocalRoot | SerializedExternalRoot;
+      if (rootDir === LOCAL_PATH) {
+        fsRoot = {type: 'local'};
+      } else {
+        fsRoot = {type: 'external', rootDir};
+      }
+      let fsTree = this.fsTrees.get(rootDir)!;
       /** @type {Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>} */
       let entries = new Array<SerializedEntry>();
       for (let entry of fsTree.entries) {
@@ -324,8 +369,7 @@ class Dependencies {
         entries
       });
     }
-    let serialized = {
-      rootDir: this.rootDir,
+    let serialized: SerializedDependencies = {
       dependencies,
       fsTrees
     };
@@ -340,24 +384,23 @@ class Dependencies {
    * @param customFS {typeof fs}. A customFS method to support fs facade change in broccoli-plugin.
    * @return {Dependencies};
    */
-  static deserialize(dependencyData: SerializedDependencies, newRootDir: string, customFS: Dependencies.FSFacade) {
-    let oldRootDir = dependencyData.rootDir;
-    newRootDir = path.normalize(newRootDir || oldRootDir);
-    let dependencies = new Dependencies(newRootDir, { fs: customFS });
+  static deserialize(dependencyData: SerializedDependencies, customFS: Dependencies.FSFacade, inputEncoding: string): Dependencies {
+    let dependencies = new Dependencies(customFS, inputEncoding);
+    if (typeof dependencyData.fsTrees[0].fsRoot === 'string') {
+      // Ideally the serialized cache would be invalidated when this code changes,
+      // but just to be safe we handle the situation where old serialized data
+      // that doesn't work with the current implementation might be present.
+      return dependencies;
+    }
     let files = Object.keys(dependencyData.dependencies);
     for (let file of files) {
       let deps = dependencyData.dependencies[file];
-      if (newRootDir) {
-        for (let i = 0; i < deps.length; i++) {
-          let dep = deps[i];
-          if (dep.startsWith(oldRootDir+path.sep)) {
-            deps[i] = dep.replace(oldRootDir, newRootDir);
-          }
-        }
-      }
-      dependencies.setDependencies(file, deps);
+      let taggedPaths: Array<[PathTag, string]> = deps.map((filePath) => {
+        return path.isAbsolute(filePath) ? [EXTERNAL_PATH, filePath] : [LOCAL_PATH, filePath];
+      });
+      dependencies.dependencyMap.set(file, taggedPaths);
     }
-    let fsTrees = new Map<string, FSTree>();
+    let fsTrees = new Map<string | typeof LOCAL_PATH, FSTree>();
     for (let fsTreeData of dependencyData.fsTrees) {
       let entries = new Array<Entry | HashEntry>();
       for (let entry of fsTreeData.entries) {
@@ -368,12 +411,12 @@ class Dependencies {
         }
       }
       let fsTree: FSTree | FSHashTree;
-      let treeRoot: string;
-      if (fsTreeData.fsRoot === oldRootDir) {
-        treeRoot = newRootDir;
+      let treeRoot: string | typeof LOCAL_PATH;
+      if (fsTreeData.fsRoot.type === 'local') {
+        treeRoot = LOCAL_PATH;
         fsTree = FSHashTree.fromHashEntries(entries, { sortAndExpand: true });
       } else {
-        treeRoot = fsTreeData.fsRoot;
+        treeRoot = fsTreeData.fsRoot.rootDir;
         fsTree = FSTree.fromEntries(entries, { sortAndExpand: true });
       }
       fsTrees.set(treeRoot, fsTree);
@@ -394,23 +437,15 @@ export = Dependencies;
  * @param dependencies {Set<string>}
  * @return {FSHashTree}
  */
-function getHashTree(fsRoot: string, dependencies: Set<string>, fs: Dependencies.FSFacade) {
+function getHashTree(fs: Dependencies.FSFacade, dependencies: Set<string>, encoding: string = 'utf8'): FSHashTree {
   let entries = new Array<HashEntry>();
   for (let dependency of dependencies) {
-    let fullPath = path.join(fsRoot, dependency);
-    try {
-      // it would be good if we could cache this and share it with
-      // the read that accompanies `processString()` (if any).
-      let contents;
-      try {
-        contents = fs.readFileSync(fullPath, 'utf8');
-      } catch (e) {
-        contents = fs.readFileSync(dependency, 'utf8');
-      }
+    // it would be good if we could cache this and share it with
+    // the read that accompanies `processString()` (if any).
+    if (fs.existsSync(dependency)) {
+      let contents = fs.readFileSync(dependency, encoding);
       let hash = md5sum(contents);
       entries.push(new HashEntry(dependency, hash));
-    } catch(e) {
-      entries.push(new HashEntry(dependency, ''));
     }
   }
   return FSHashTree.fromHashEntries(entries);
@@ -420,10 +455,10 @@ function getHashTree(fsRoot: string, dependencies: Set<string>, fs: Dependencies
  * Get an FSTree that uses fs.stat information to compare files to see
  * if they have changed.
  *
- * @param fsRoot {string}
+ * @param fsRoot {string} The root directory for these files
  * @param dependencies {Set<string>}
  */
-function getStatTree(fsRoot: string, dependencies: Set<string>, fs: Dependencies.FSFacade) {
+function getStatTree(fsRoot: string, dependencies: Set<string>): FSTree<Entry> {
   let entries = new Array<Entry>();
   for (let dependency of dependencies) {
     let fullPath = path.join(fsRoot, dependency);

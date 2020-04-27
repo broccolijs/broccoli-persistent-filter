@@ -26,10 +26,10 @@ const DefaultStrategy: Strategy = {
   /**
    * By default initial dependencies are empty.
    */
-  initialDependencies(srcDir: string, options: Dependencies.Options): Dependencies {
+  initialDependencies(rootFS: Dependencies.FSFacade, inputEncoding: string): Dependencies {
     // Dependencies start out empty and sealed as if they came from
     // the previous build iteration.
-    return (new Dependencies(srcDir, options)).seal().captureDependencyState();
+    return (new Dependencies(rootFS, inputEncoding)).seal().captureDependencyState();
   },
 
   /**

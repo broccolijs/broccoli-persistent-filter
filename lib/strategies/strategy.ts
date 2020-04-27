@@ -19,6 +19,6 @@ export interface InstrumentationSchema {
 export interface Strategy {
   init(ctx: Context): void;
   processString(ctx: Context, contents: string, relativePath: string, forceInvalidation: boolean, instrumentation: InstrumentationSchema):  string | ProcessStringResult | Promise<string | ProcessStringResult>;
-  initialDependencies(srcDir: string, options: Dependencies.Options): Dependencies;
+  initialDependencies(rootFS: Dependencies.FSFacade, inputEncoding: string): Dependencies
   sealDependencies(dependencies: Dependencies): void;
 }

@@ -31,10 +31,9 @@ class Processor implements Strategy {
   /**
    * Create the initial dependencies.
    * @param options options is used to pass the custom fs operations implementations
-   * @returns {ReturnType<typeof defaultProcessor['initialDependencies']>}
    */
-  initialDependencies(srcDir: string, options: Dependencies.Options) {
-    return this.processor.initialDependencies(srcDir, options);
+  initialDependencies(rootFS: Dependencies.FSFacade, inputEncoding: string) {
+    return this.processor.initialDependencies(rootFS, inputEncoding);
   }
 
   /**

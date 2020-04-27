@@ -216,14 +216,14 @@ abstract class Filter extends Plugin {
     let destDir = this.outputPath;
 
     if (this.dependencyInvalidation && !this.dependencies) {
-      this.dependencies = this.processor.initialDependencies(srcDir, { fs: this.input });
+      this.dependencies = this.processor.initialDependencies(this.input, this.inputEncoding || 'utf8');
     }
 
     if (this._needsReset) {
       this.currentTree = new FSTree();
       let instrumentation = heimdall.start('reset');
       if (this.dependencies) {
-        this.dependencies = this.processor.initialDependencies(srcDir, { fs: this.input });
+        this.dependencies = this.processor.initialDependencies(this.input, this.inputEncoding || 'utf8');
       }
       this.output.rmdirSync('./',  { recursive: true });
       this.output.mkdirSync('./', { recursive: true });
@@ -476,9 +476,9 @@ abstract class Filter extends Plugin {
     let outputPath = filter.getDestFilePath(relativePath, entry);
 
     if (outputPath == null) {
-      throw new Error('[BroccoliPersistentFilter] canProcessFile('' + relativePath +
-                      '') is true, but getDestFilePath('' +
-                      relativePath + '') is null');
+      throw new Error('[BroccoliPersistentFilter] canProcessFile("' + relativePath +
+                      '") is true, but getDestFilePath("' +
+                      relativePath + '") is null');
     }
 
     if (isChange) {
