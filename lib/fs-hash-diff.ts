@@ -2,7 +2,7 @@
 'use strict';
 
 // Imported for type annotations.
-import FSTree from 'fs-tree-diff';
+import FSTree = require('fs-tree-diff');
 import Entry from 'fs-tree-diff/lib/entry';
 
 export class HashEntry {
