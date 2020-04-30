@@ -8,12 +8,11 @@
     "paths": {
       "*": ["types/*"]
     },
+    "declarationMap": true,
     "sourceMap": true,
     "strict": true,
     "target": "es2018",
-    "types": ["node"],
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "types": ["node"]
   },
   "include": ["index.ts", "lib/**/*.ts"]
 }

@@ -2,7 +2,7 @@
 'use strict';
 
 // Imported for type annotations.
-import FSTree from 'fs-tree-diff';
+import FSTree = require('fs-tree-diff');
 import Entry from 'fs-tree-diff/lib/entry';
 
 export class HashEntry {
@@ -37,7 +37,6 @@ export class FSHashTree extends FSTree<Entry | HashEntry> {
    */
   constructor(options: ConstructorParameters<typeof FSTree>[0]) {
     super(options);
-    /** @type Array<Entry|HashEntry> */
     this.entries = options?.entries || [];
   }
   static defaultIsEqual(entryA: HashEntry | Entry, entryB: HashEntry | Entry): boolean {

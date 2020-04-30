@@ -1,17 +1,17 @@
 import type { InputNode } from 'broccoli-node-api';
-import queue from 'async-promise-queue';
-import Plugin from 'broccoli-plugin';
-import FSTree from 'fs-tree-diff';
-import hashForDep from 'hash-for-dep';
-import heimdall from 'heimdalljs';
-import debugGenerator from 'heimdalljs-logger';
+import queue = require('async-promise-queue');
+import Plugin = require('broccoli-plugin');
+import FSTree = require('fs-tree-diff');
+import hashForDep = require('hash-for-dep');
+import heimdall = require('heimdalljs');
+import debugGenerator = require('heimdalljs-logger');
 import * as path from 'path';
-import mapSeries from 'promise-map-series';
+import mapSeries = require('promise-map-series');
 
-import addPatches from './lib/addPatches';
-import type Dependencies from './lib/dependencies';
-import md5Hex from './lib/md5-hex';
-import Processor from './lib/processor';
+import addPatches = require('./lib/addPatches');
+import Dependencies = require('./lib/dependencies');
+import md5Hex = require('./lib/md5-hex');
+import Processor = require('./lib/processor');
 import { ProcessStringResult } from './lib/strategies/strategy';
 import Entry from 'fs-tree-diff/lib/entry';
 

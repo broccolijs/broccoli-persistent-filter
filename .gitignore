@@ -32,6 +32,7 @@ test/fixtures/tmp
 *.js
 *.js.map
 *.d.ts
+*.d.ts.map
 !types/*
 !types/*/*
 !test/*

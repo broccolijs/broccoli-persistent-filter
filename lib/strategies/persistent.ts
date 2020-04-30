@@ -1,11 +1,11 @@
-import { Context, ProcessStringResult, Strategy, InstrumentationSchema } from "./strategy";
+import { Context, ProcessStringResult, Strategy, InstrumentationSchema } from './strategy';
 import AsyncDiskCache = require('async-disk-cache');
 import SyncDiskCache = require('sync-disk-cache');
 import Dependencies = require('../dependencies');
 import Rimraf = require('rimraf');
-import * as process from "process";
-import nativePromise from "../util/nativePromise";
-import assertNever from "../util/assertNever";
+import * as process from 'process';
+import nativePromise from '../util/nativePromise';
+import assertNever from '../util/assertNever';
 
 const rimraf = Rimraf.sync;
 
@@ -87,7 +87,6 @@ const PersistentStrategy: IPersistentStrategy = {
     let result = this._syncCache!.get<string>('__dependencies__');
     let dependencies;
     if (result.isCached) {
-      /** @type {ReturnType<Dependencies['serialize']>} */
       let data = JSON.parse(result.value);
       dependencies = Dependencies.deserialize(data, rootFS, inputEncoding);
     } else {

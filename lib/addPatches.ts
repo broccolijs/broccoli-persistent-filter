@@ -1,4 +1,4 @@
-import type FSTree from 'fs-tree-diff';
+import FSTree = require('fs-tree-diff');
 
 /**
  * Create a new patch that achieves the same outcome as if the patches from

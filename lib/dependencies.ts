@@ -7,9 +7,9 @@ import FSTree = require('fs-tree-diff');
 import Entry from 'fs-tree-diff/lib/entry';
 import { HashEntry, FSHashTree } from './fs-hash-diff';
 import md5sum = require('./md5-hex');
-import { resolve } from 'dns';
-import type FSMerger from 'fs-merger';
+import FSMerger = require('fs-merger');
 import resolveRelative from './util/resolveRelative';
+
 
 const LOCAL_PATH: unique symbol = Symbol('Local Filesystem');
 const EXTERNAL_PATH: unique symbol = Symbol('External Filesystem');
@@ -18,48 +18,52 @@ type PathTag = typeof LOCAL_PATH | typeof EXTERNAL_PATH;
 
 namespace Dependencies {
   export type FSFacade =
-    Pick<typeof fs, 'readFileSync' | 'statSync' | 'existsSync'>
+    Pick<typeof fs, 'existsSync' | 'readFileSync' | 'statSync'>
     & Pick<FSMerger.FS, 'relativePathTo'>;
-}
 
-interface SerializedTreeEntry {
-  relativePath: string;
-}
+  export interface Options {
+    fs: FSFacade;
+  }
 
-interface SerializedStatEntry {
-  type: 'stat';
-  size: number;
-  mtime: number;
-  mode: number;
-}
+  export interface SerializedTreeEntry {
+    relativePath: string;
+  }
 
-interface SerializedHashEntry {
-  type: 'hash';
-  hash: string;
-}
+  export interface SerializedStatEntry {
+    type: 'stat';
+    size: number;
+    mtime: number;
+    mode: number;
+  }
 
-type SerializedEntry = SerializedTreeEntry
-                     & ( SerializedStatEntry | SerializedHashEntry);
+  export interface SerializedHashEntry {
+    type: 'hash';
+    hash: string;
+  }
 
-interface SerializedExternalRoot {
-  type: 'external';
-  rootDir: string;
-}
+  export type SerializedEntry = SerializedTreeEntry
+    & (SerializedStatEntry | SerializedHashEntry);
 
-interface SerializedLocalRoot {
-  type: 'local';
-}
+  export interface SerializedExternalRoot {
+    type: 'external';
+    rootDir: string;
+  }
 
-type SerializedRoot = SerializedExternalRoot | SerializedLocalRoot;
+  export interface SerializedLocalRoot {
+    type: 'local';
+  }
 
-type SerializedTree = {
-  fsRoot: SerializedRoot,
-  entries: Array<SerializedEntry>
-}
+  export type SerializedRoot = SerializedExternalRoot | SerializedLocalRoot;
 
-interface SerializedDependencies {
-  fsTrees: Array<SerializedTree>;
-  dependencies: Record<string, Array<string>>;
+  export type SerializedTree = {
+    fsRoot: SerializedRoot,
+    entries: Array<SerializedEntry>
+  }
+
+  export interface SerializedDependencies {
+    fsTrees: Array<SerializedTree>;
+    dependencies: Record<string, Array<string>>;
+  }
 }
 
 class Dependencies {
@@ -261,11 +265,9 @@ class Dependencies {
     if (!this.sealed) {
       throw new Error('Cannot compute dependency state with unsealed dependencies.');
     }
-    /** @type {Map<string, FSTree<Entry> | FSHashTree>} */
-    let fsTrees = new Map();
+    let fsTrees = new Map<string | typeof LOCAL_PATH, FSTree<Entry> | FSHashTree>();
     for (let fsRoot of this.allDependencies.keys()) {
       let dependencies = this.allDependencies.get(fsRoot)!;
-      /** @type {FSTree<Entry> | FSHashTree} */
       let fsTree;
       if (fsRoot === LOCAL_PATH) {
         fsTree = getHashTree(this.rootFS, dependencies, this.inputEncoding);
@@ -287,8 +289,8 @@ class Dependencies {
     let currentState = this.getDependencyState();
     for (let fsRoot of this.allDependencies.keys()) {
       let oldTree = this.fsTrees.get(fsRoot);
-      if (!oldTree) throw new Error('internal error');
       let currentTree = currentState.get(fsRoot);
+      if (!oldTree || !currentTree) throw new Error('internal error');
       let patch: FSTree.Patch;
       // typescript doesn't think these calculatePatch methods are the same
       // enough to call them from a single code path. I think it's a typescript
@@ -324,7 +326,7 @@ class Dependencies {
    * used to invalidate files during the next build in a new process.
    * @return {{rootDir: string, dependencies: {[k: string]: string[]}, fsTrees: Array<{fsRoot: string, entries: Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>}>}}
    */
-  serialize(): SerializedDependencies {
+  serialize(): Dependencies.SerializedDependencies {
     let dependencies: Record<string, Array<string>> = {};
     this.dependencyMap.forEach((deps, filePath) => {
       dependencies[filePath] = deps.map(([tag, dep]) => {
@@ -336,17 +338,16 @@ class Dependencies {
         return dep;
       });
     });
-    let fsTrees = new Array<SerializedTree>();
+    let fsTrees = new Array<Dependencies.SerializedTree>();
     for (let rootDir of this.fsTrees.keys()) {
-      let fsRoot: SerializedLocalRoot | SerializedExternalRoot;
+      let fsRoot: Dependencies.SerializedLocalRoot | Dependencies.SerializedExternalRoot;
       if (rootDir === LOCAL_PATH) {
         fsRoot = {type: 'local'};
       } else {
         fsRoot = {type: 'external', rootDir};
       }
       let fsTree = this.fsTrees.get(rootDir)!;
-      /** @type {Array<{relativePath: string} & ({type: 'stat', size: number, mtime: number, mode: number} | {type: 'hash', hash: string})>} */
-      let entries = new Array<SerializedEntry>();
+      let entries = new Array<Dependencies.SerializedEntry>();
       for (let entry of fsTree.entries) {
         if (entry instanceof HashEntry) {
           entries.push({
@@ -369,7 +370,7 @@ class Dependencies {
         entries
       });
     }
-    let serialized: SerializedDependencies = {
+    let serialized: Dependencies.SerializedDependencies = {
       dependencies,
       fsTrees
     };
@@ -384,7 +385,7 @@ class Dependencies {
    * @param customFS {typeof fs}. A customFS method to support fs facade change in broccoli-plugin.
    * @return {Dependencies};
    */
-  static deserialize(dependencyData: SerializedDependencies, customFS: Dependencies.FSFacade, inputEncoding: string): Dependencies {
+  static deserialize(dependencyData: Dependencies.SerializedDependencies, customFS: Dependencies.FSFacade, inputEncoding: string): Dependencies {
     let dependencies = new Dependencies(customFS, inputEncoding);
     if (typeof dependencyData.fsTrees[0].fsRoot === 'string') {
       // Ideally the serialized cache would be invalidated when this code changes,
@@ -400,7 +401,7 @@ class Dependencies {
       });
       dependencies.dependencyMap.set(file, taggedPaths);
     }
-    let fsTrees = new Map<string | typeof LOCAL_PATH, FSTree>();
+    let fsTrees = new Map<string | typeof LOCAL_PATH, FSTree | FSHashTree>();
     for (let fsTreeData of dependencyData.fsTrees) {
       let entries = new Array<Entry | HashEntry>();
       for (let entry of fsTreeData.entries) {

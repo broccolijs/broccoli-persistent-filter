@@ -5,16 +5,16 @@
   "author": "Stefan Penner <stefan.penner@gmail.com>",
   "main": "index.js",
   "files": [
-    "index.js",
-    "index.d.ts",
-    "index.js.map",
+    "index.*",
     "lib/"
   ],
   "scripts": {
-    "prepare": "tsc -b",
+    "prepare": "yarn build",
+    "pretest": "yarn build",
+    "build": "tsc -b",
     "watch": "tsc --watch .",
     "clean": "tsc -b --clean .",
-    "test": "yarn prepare && yarn test:js && yarn test:types",
+    "test": "yarn test:js && yarn test:types",
     "test:coverage": "istanbul cover --config=test/istanbul.yml _mocha",
     "test:debug": "yarn prepare && yarn test:js:debug",
     "test:js": "mocha --require source-map-support/register  test/*-test.js",
@@ -40,7 +40,6 @@
   "dependencies": {
     "async-disk-cache": "^2.0.0",
     "async-promise-queue": "^1.0.3",
-    "broccoli-node-api": "^1.7.0",
     "broccoli-plugin": "^4.0.3",
     "fs-tree-diff": "^2.0.0",
     "hash-for-dep": "^1.5.0",
@@ -58,6 +57,7 @@
     "@types/mocha": "^7.0.2",
     "@types/node": "^13",
     "@types/rimraf": "^3.0.0",
+    "broccoli-node-api": "^1.7.0",
     "broccoli-test-helper": "^2.0.0",
     "chai-as-promised": "^7.1.1",
     "chai-files": "^1.4.0",
