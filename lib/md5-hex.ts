@@ -1,20 +1,15 @@
 /// @ts-check
 'use strict';
 
-const crypto = require('crypto');
+import * as crypto from 'crypto';
 
-/**
- * @param input {Buffer | string}
- * @returns {string}
- */
-function md5sum(input) {
+function md5sum(input: Buffer | string | Array<Buffer | string>): string {
   let hash = crypto.createHash('md5');
 
   /**
-   * @param buf {Buffer | string}
+   * @param buf {}
    */
-  function update(buf) {
-    /** @type {'utf8' | undefined} */
+  function update(buf: Buffer | string) {
     if (typeof buf === 'string') {
       hash.update(buf, 'utf8');
     } else {
@@ -35,4 +30,4 @@ function md5sum(input) {
   return hash.digest('hex');
 }
 
-module.exports = md5sum;
+export = md5sum;

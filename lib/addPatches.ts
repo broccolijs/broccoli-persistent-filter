@@ -1,7 +1,4 @@
-/// @ts-check
-'use strict';
-
-const FSTree = require('fs-tree-diff'); // jshint ignore:line
+import FSTree = require('fs-tree-diff');
 
 /**
  * Create a new patch that achieves the same outcome as if the patches from
@@ -28,21 +25,15 @@ const FSTree = require('fs-tree-diff'); // jshint ignore:line
  * `change` |     2    |     1?   |     2    |    -    |    -
  * `rmdir`  |     -    |     -    |     -    |    2    |    3
  * `mkdir`  |     -    |     -    |     -    |    0    |    2
- *
- * @param list1 {FSTree.Patch}
- * @param list2 {FSTree.Patch}
- * @returns {FSTree.Patch}
  */
-function addPatches(list1, list2) {
+function addPatches(list1: FSTree.Patch, list2: FSTree.Patch): FSTree.Patch {
   if (list1.length === 0) return list2;
   if (list2.length === 0) return list1;
-  /** @type {{[key: string]: number}} */
-  let filesInList1 = {};
+  let filesInList1: Record<string, number> = {};
   for (let i = 0; i < list1.length; i++) {
     filesInList1[list1[i][1]] = i;
   }
-  /** @type {{[key: string]: [number, number]}} */
-  let filesInBothLists = {};
+  let filesInBothLists: Record<string, [number, number]> = {};
   for (let i = 0; i < list2.length; i++) {
     let name = list2[i][1];
     if (typeof filesInList1[name] !== 'undefined') {
@@ -53,8 +44,7 @@ function addPatches(list1, list2) {
   // These two for loops are structurally similar but I feel that the DRY
   // principle, if applied here, makes the code less understandable.
 
-  /** @type FSTree.Patch */
-  let patch = [];
+  let patch: FSTree.Patch = [];
   // keep the patches in list 1 if applicable
   for (let i = 0; i < list1.length; i++) {
     let operation = list1[i];
@@ -101,4 +91,4 @@ function addPatches(list1, list2) {
   return patch;
 }
 
-module.exports = addPatches;
+export = addPatches;

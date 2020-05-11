@@ -1,7 +1,7 @@
 'use strict';
 
 var path = require('path');
-var Filter = require('../../');
+var Filter = require('../..');
 var minimatch = require('minimatch');
 class ReplaceFilter extends Filter{
   constructor (inputTree, _options) {

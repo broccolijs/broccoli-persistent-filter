@@ -27,3 +27,15 @@ build/Release
 node_modules
 
 test/fixtures/tmp
+# typescript output
+*.tsbuildinfo
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map
+!types/*
+!types/*/*
+!test/*
+!test/*/*
+!type-tests/index.d.ts
+
