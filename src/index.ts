@@ -163,8 +163,9 @@ abstract class Filter extends Plugin {
     return !!result;
   }
 
-  constructor(inputTree: InputNode, options: Options) {
-    super([inputTree], {
+  constructor(inputNodes: InputNode | InputNode[], options: Options) {
+    inputNodes = Array.isArray(inputNodes) ? inputNodes : [inputNodes];
+    super(inputNodes, {
       name: (options && options.name),
       annotation: (options && options.annotation),
       persistentOutput: true
@@ -212,8 +213,6 @@ abstract class Filter extends Plugin {
   }
 
   async build() {
-    let srcDir = this.inputPaths[0];
-    let destDir = this.outputPath;
 
     if (this.dependencyInvalidation && !this.dependencies) {
       this.dependencies = this.processor.initialDependencies(this.input, this.inputEncoding || 'utf8');
@@ -309,7 +308,7 @@ abstract class Filter extends Plugin {
             // wrap this in a function so it doesn't actually run yet, and can be throttled
             let changeOperation = () => {
               instrumentation.change++;
-              return this._handleFile(relativePath, srcDir, destDir, entry!, outputFilePath, forceInvalidation, true, instrumentation);
+              return this._handleFile(relativePath, entry!, outputFilePath, forceInvalidation, true, instrumentation);
             };
             if (this.async) {
               pendingWork.push(changeOperation);
@@ -320,7 +319,7 @@ abstract class Filter extends Plugin {
             // wrap this in a function so it doesn't actually run yet, and can be throttled
             let createOperation = () => {
               instrumentation.create++;
-              return this._handleFile(relativePath, srcDir, destDir, entry!, outputFilePath, forceInvalidation, false, instrumentation);
+              return this._handleFile(relativePath, entry!, outputFilePath, forceInvalidation, false, instrumentation);
             };
             if (this.async) {
               pendingWork.push(createOperation);
@@ -342,13 +341,12 @@ abstract class Filter extends Plugin {
     });
   }
 
-  async _handleFile(relativePath: string, srcDir: string, destDir: string, entry: Entry, outputPath: string, forceInvalidation: boolean, isChange: boolean, stats: ApplyPatchesSchema) {
+  async _handleFile(relativePath: string, entry: Entry, outputPath: string, forceInvalidation: boolean, isChange: boolean, stats: ApplyPatchesSchema) {
     stats.handleFile++;
 
     let handleFileStart = process.hrtime();
     try {
       let result: string | ProcessResult | undefined;
-      let srcPath = srcDir + '/' + relativePath;
 
       if (this.canProcessFile(relativePath, entry)) {
         stats.processed++;
@@ -356,13 +354,16 @@ abstract class Filter extends Plugin {
           delete this._outputLinks[outputPath];
           this.output.unlinkSync(outputPath);
         }
-        result = await this.processAndCacheFile(srcDir, destDir, entry, forceInvalidation, isChange, stats);
+        result = await this.processAndCacheFile(entry, forceInvalidation, isChange, stats);
       } else {
         stats.linked++;
         if (isChange) {
           this.output.unlinkSync(outputPath);
         }
-        this.output.symlinkOrCopySync(srcPath, outputPath);
+        let fileMata = this.input.readFileMeta(relativePath);
+        if (fileMata) {
+          this.output.symlinkOrCopySync(fileMata!.path, outputPath);
+        }
         result = undefined;
         this._outputLinks[outputPath] = true;
       }
@@ -442,21 +443,22 @@ abstract class Filter extends Plugin {
     return null;
   }
 
-  async processAndCacheFile(srcDir: string, destDir: string, entry: Entry, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema): Promise<string | ProcessResult | undefined> {
+  async processAndCacheFile(entry: Entry, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema): Promise<string | ProcessResult | undefined> {
     let filter = this;
     let relativePath = entry.relativePath;
     try {
-      return await filter.processFile(srcDir, destDir, relativePath, forceInvalidation, isChange, instrumentation, entry);
+      return await filter.processFile(relativePath, forceInvalidation, isChange, instrumentation, entry);
     } catch (e) {
       let error = e;
+      let fileMeta = this.input.readFileMeta(relativePath);
       if (typeof e !== 'object') error = new Error('' + e);
       error.file = relativePath;
-      error.treeDir = srcDir;
+      error.treeDir = fileMeta && fileMeta.path;
       throw error;
     }
   }
 
-  async processFile(_srcDir: string, _destDir: string, relativePath: string, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema, entry: Entry): Promise<string | ProcessResult | undefined> {
+  async processFile(relativePath: string, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema, entry: Entry): Promise<string | ProcessResult | undefined> {
     let filter = this;
     let inputEncoding = this.inputEncoding;
     let outputEncoding = this.outputEncoding;

@@ -1523,6 +1523,106 @@ describe('Filter', function() {
 
     });
   });
+
+  describe('accepts array of inputs', function() {
+    class TestFilter extends Filter {
+      processString(content) {
+          return content.replace(/broccoli/gi, `filter`);
+      }
+    }
+
+    let input, output;
+
+    beforeEach(async function() {
+      input = await createTempDir();
+    });
+
+    afterEach(async function() {
+      await input.dispose();
+      output && await output.dispose();
+    });
+
+    it ('input node array of strings', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;',
+        },
+        'docs': {
+          'README.md': 'broccoli',
+        }
+      });
+
+      let subject = new TestFilter([path.join(input.path(), 'docs'), path.join(input.path(), 'example')]);
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('map.js')).to.equal('let filter = 0;');
+      expect(output.readText('README.md')).to.equal('filter');
+    });
+
+    it ('input node can be broccoli node', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;\nbroccoli=1;',
+        },
+        'docs': {
+          'README.md': 'broccoli',
+        }
+      });
+
+      let subject = new TestFilter(new ReplaceFilter(input.path(), { glob: '**/*.js', search: '\n', replace: '\t' }));
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('example/map.js')).to.equal('let filter = 0;\tfilter=1;');
+      expect(output.readText('docs/README.md')).to.equal('filter');
+    });
+    it ('with extension', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;',
+        },
+        'docs': {
+          'README.md': 'broccoli',
+        }
+      });
+
+      let subject = new TestFilter([path.join(input.path(), 'docs'), path.join(input.path(), 'example')], {
+        targetExtension: 'foo',
+        extensions: ['md']
+      });
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('map.js')).to.equal('let broccoli = 0;');
+      expect(output.readText('README.foo')).to.equal('filter');
+    });
+
+    it ('files with same name', async function() {
+      input.write({
+        'example': {
+          'map.js': 'let broccoli = 0;',
+          'test': {
+            'README.md': 'broccoli'
+          },
+          'change.md':'no change',
+        },
+        'docs': {
+          'README.md': 'broccoli',
+          'map.js': 'let test = 0;',
+          'change.md':'changed',
+        }
+      });
+
+      let subject = new TestFilter([path.join(input.path(), 'docs'), path.join(input.path(), 'example')], {
+        targetExtension: 'foo',
+        extensions: ['md']
+      });
+      output = createBuilder(subject);
+      await output.build();
+      expect(output.readText('map.js')).to.equal('let broccoli = 0;');
+      expect(output.readText('README.foo')).to.equal('filter');
+      expect(output.readText('test/README.foo')).to.equal('filter');
+      expect(output.readText('change.foo')).to.equal('no change');
+    });
+  });
 });
 
 describe('throttling', function() {
