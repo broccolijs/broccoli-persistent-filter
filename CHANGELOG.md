@@ -1,5 +1,13 @@
 # master
 
+* dependency tracking now uses fs-merger
+* port to typescript and associated cleanup
+* drop Node 8 & 6
+
+# 2.3.1
+
+* Normalize all paths used in dependency tracking
+
 # 2.3.0
 
 * add optional enhanced dependency tracking
