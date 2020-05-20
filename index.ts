@@ -131,8 +131,8 @@ interface Options {
   inputEncoding?: string;
   outputEncoding?: string;
   async?: boolean;
-  dependencyInvalidation: boolean;
-  concurrency: number;
+  dependencyInvalidation?: boolean;
+  concurrency?: number;
 }
 
 abstract class Filter extends Plugin {
