@@ -360,9 +360,9 @@ abstract class Filter extends Plugin {
         if (isChange) {
           this.output.unlinkSync(outputPath);
         }
-        let fileMata = this.input.readFileMeta(relativePath);
-        if (fileMata) {
-          this.output.symlinkOrCopySync(fileMata!.path, outputPath);
+        let fileMeta = this.input.readFileMeta(relativePath);
+        if (fileMeta) {
+          this.output.symlinkOrCopySync(fileMeta.path, outputPath);
         }
         result = undefined;
         this._outputLinks[outputPath] = true;
