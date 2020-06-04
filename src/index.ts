@@ -453,7 +453,12 @@ abstract class Filter extends Plugin {
       let fileMeta = this.input.readFileMeta(relativePath);
       if (typeof e !== 'object') error = new Error('' + e);
       error.file = relativePath;
-      error.treeDir = fileMeta && fileMeta.path;
+      let treeDir = relativePath;
+      if (fileMeta) {
+        let rootRelativeToFilePath = fileMeta.path.replace(relativePath, ''); // remo
+        treeDir = rootRelativeToFilePath.replace(/\/$/, ''); // remove trailing slash
+      }
+      error.treeDir = treeDir;
       throw error;
     }
   }
