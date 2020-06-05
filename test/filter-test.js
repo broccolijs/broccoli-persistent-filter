@@ -253,6 +253,38 @@ describe('Filter', function() {
           'index.js': `console.log('hi')`
         });
       });
+
+      describe('treeDir and file paths are correct',async function() {
+        it('input path is absolute', async function() {
+          input.write({
+            'index.js': `console.log('hi')`
+          });
+
+          try {
+            await output.build();
+          } catch(error) {
+            expect(error.broccoliPayload.originalError.file).to.equal(`index.js`);
+            expect(error.broccoliPayload.originalError.treeDir).to.equal(input.path());
+            expect(error.message).to.includes(input.path());
+            expect(error.message).to.includes(`index.js`);
+          }
+        });
+
+        it('input path is relative', async function() {
+          const TEST_ROOT = `test/fixtures/dependencies`;
+          const TEST_FILE = `file1.txt`;
+          subject = new Plugin(TEST_ROOT);
+          output = createBuilder(subject);
+          try {
+            await output.build();
+          } catch(error) {
+            expect(error.broccoliPayload.originalError.file).to.equal(TEST_FILE);
+            expect(error.broccoliPayload.originalError.treeDir).to.equal(TEST_ROOT);
+            expect(error.message).to.includes(TEST_ROOT);
+            expect(error.message).to.includes(TEST_FILE);
+          }
+        });
+      });
     });
 
     describe('build failures - async', function() {
