@@ -8,11 +8,12 @@
     "paths": {
       "*": ["types/*"]
     },
+    "outDir": "lib",
     "declarationMap": true,
     "sourceMap": true,
     "strict": true,
     "target": "es2018",
     "types": ["node"]
   },
-  "include": ["index.ts", "lib/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

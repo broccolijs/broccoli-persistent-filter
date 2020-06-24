@@ -3,10 +3,10 @@
   "version": "3.0.1",
   "description": "broccoli filter but with a persistent cache",
   "author": "Stefan Penner <stefan.penner@gmail.com>",
-  "main": "index.js",
+  "main": "lib/index.js",
   "files": [
-    "index.*",
-    "lib/"
+    "lib/",
+    "src/"
   ],
   "scripts": {
     "prepare": "yarn build",

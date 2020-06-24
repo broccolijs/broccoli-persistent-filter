@@ -8,11 +8,11 @@ import debugGenerator = require('heimdalljs-logger');
 import * as path from 'path';
 import mapSeries = require('promise-map-series');
 
-import addPatches = require('./lib/addPatches');
-import Dependencies = require('./lib/dependencies');
-import md5Hex = require('./lib/md5-hex');
-import Processor = require('./lib/processor');
-import { ProcessStringResult } from './lib/strategies/strategy';
+import addPatches = require('./addPatches');
+import Dependencies = require('./dependencies');
+import md5Hex = require('./md5-hex');
+import Processor = require('./processor');
+import { ProcessStringResult } from './strategies/strategy';
 import Entry from 'fs-tree-diff/lib/entry';
 
 class ApplyPatchesSchema {
@@ -195,7 +195,7 @@ abstract class Filter extends Plugin {
       if (options.inputEncoding != null)   this.inputEncoding = options.inputEncoding;
       if (options.outputEncoding != null)  this.outputEncoding = options.outputEncoding;
       if (Filter.shouldPersist(process.env, options.persist)) {
-        this.processor.setStrategy(require('./lib/strategies/persistent'));
+        this.processor.setStrategy(require('./strategies/persistent'));
       }
       this.async = (options.async === true);
     }
