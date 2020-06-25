@@ -1,3 +1,8 @@
+
+# 3.1.0
+
+* Separate typescript source files into their own directory to fix a typescript issue
+
 # 3.0.1
 
 * add tests to verify the file property on errors is correct
