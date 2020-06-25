@@ -1,4 +1,9 @@
-# master
+# 3.0.1
+
+* add tests to verify the file property on errors is correct
+* mark some options as optional
+
+# 3.0.0
 
 * dependency tracking now uses fs-merger
 * port to typescript and associated cleanup
