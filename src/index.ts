@@ -8,11 +8,11 @@ import debugGenerator = require('heimdalljs-logger');
 import * as path from 'path';
 import mapSeries = require('promise-map-series');
 
-import addPatches = require('./lib/addPatches');
-import Dependencies = require('./lib/dependencies');
-import md5Hex = require('./lib/md5-hex');
-import Processor = require('./lib/processor');
-import { ProcessStringResult } from './lib/strategies/strategy';
+import addPatches = require('./addPatches');
+import Dependencies = require('./dependencies');
+import md5Hex = require('./md5-hex');
+import Processor = require('./processor');
+import { ProcessStringResult as ProcessResult } from './strategies/strategy';
 import Entry from 'fs-tree-diff/lib/entry';
 
 class ApplyPatchesSchema {
@@ -195,7 +195,7 @@ abstract class Filter extends Plugin {
       if (options.inputEncoding != null)   this.inputEncoding = options.inputEncoding;
       if (options.outputEncoding != null)  this.outputEncoding = options.outputEncoding;
       if (Filter.shouldPersist(process.env, options.persist)) {
-        this.processor.setStrategy(require('./lib/strategies/persistent'));
+        this.processor.setStrategy(require('./strategies/persistent'));
       }
       this.async = (options.async === true);
     }
@@ -279,7 +279,7 @@ abstract class Filter extends Plugin {
     }
 
     // used with options.async = true to allow 'create' and 'change' operations to complete async
-    const pendingWork = new Array<() => Promise<string | ProcessStringResult | undefined>>();
+    const pendingWork = new Array<() => Promise<string | ProcessResult | undefined>>();
     return heimdall.node('applyPatches', ApplyPatchesSchema, async (instrumentation) => {
       let prevTime = process.hrtime();
       await mapSeries(patches, (patch: FSTree.Operation) => {
@@ -347,7 +347,7 @@ abstract class Filter extends Plugin {
 
     let handleFileStart = process.hrtime();
     try {
-      let result: string | ProcessStringResult | undefined;
+      let result: string | ProcessResult | undefined;
       let srcPath = srcDir + '/' + relativePath;
 
       if (this.canProcessFile(relativePath, entry)) {
@@ -442,7 +442,7 @@ abstract class Filter extends Plugin {
     return null;
   }
 
-  async processAndCacheFile(srcDir: string, destDir: string, entry: Entry, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema): Promise<string | ProcessStringResult | undefined> {
+  async processAndCacheFile(srcDir: string, destDir: string, entry: Entry, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema): Promise<string | ProcessResult | undefined> {
     let filter = this;
     let relativePath = entry.relativePath;
     try {
@@ -456,7 +456,7 @@ abstract class Filter extends Plugin {
     }
   }
 
-  async processFile(_srcDir: string, _destDir: string, relativePath: string, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema, entry: Entry): Promise<string | ProcessStringResult | undefined> {
+  async processFile(_srcDir: string, _destDir: string, relativePath: string, forceInvalidation: boolean, isChange: boolean, instrumentation: ApplyPatchesSchema, entry: Entry): Promise<string | ProcessResult | undefined> {
     let filter = this;
     let inputEncoding = this.inputEncoding;
     let outputEncoding = this.outputEncoding;
@@ -516,15 +516,19 @@ abstract class Filter extends Plugin {
    * @param _relativePath {string}
    * @returns {string}
    */
-  processString(_contents: string, _relativePath: string): string | ProcessStringResult | Promise<string | ProcessStringResult> {
+  processString(_contents: string, _relativePath: string): string | ProcessResult | Promise<string | ProcessResult> {
     throw new Error(
         '[BroccoliPersistentFilter] When subclassing broccoli-persistent-filter you must implement the ' +
         '`processString()` method.');
   }
 
-  postProcess(result: ProcessStringResult, _relativePath: string): ProcessStringResult | Promise<ProcessStringResult> {
+  postProcess(result: ProcessResult, _relativePath: string): ProcessResult | Promise<ProcessResult> {
     return result;
   }
+}
+
+namespace Filter {
+  export type ProcessStringResult<Data = {}> = ProcessResult<Data>;
 }
 
 export = Filter;

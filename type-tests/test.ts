@@ -1,6 +1,5 @@
 import * as path from 'path';
 import Filter = require('broccoli-persistent-filter');
-import { ProcessStringResult } from '../lib/strategies/strategy';
 
 class PathAnnotator extends Filter {
   processString(contents: string, relativePath: string) {
@@ -26,7 +25,7 @@ class LazyPathAnnotator extends Filter {
       return `/* ${relativePath} */\n${contents}`;
     })
   }
-  postProcess(results: ProcessStringResult, relativePath: string) {
+  postProcess(results: Filter.ProcessStringResult, relativePath: string) {
     return Promise.resolve(results);
   }
 }
@@ -38,13 +37,13 @@ interface MyCustomProcessingData {
 }
 
 class MyPostProcessingFilter extends Filter {
-  processString(contents: string, relativePath: string): ProcessStringResult & MyCustomProcessingData {
+  processString(contents: string, relativePath: string): Filter.ProcessStringResult<MyCustomProcessingData> {
     return {
       output: contents,
       byteCount: contents.length,
     };
   }
-  postProcess(results: ProcessStringResult & MyCustomProcessingData, relativePath: string) {
+  postProcess(results: Filter.ProcessStringResult<MyCustomProcessingData>, relativePath: string) {
     // It should be legal to set the output.
     results.output = 'Updated output';
     const numBytes = results.byteCount; // $ExpectType number
