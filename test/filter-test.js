@@ -16,7 +16,6 @@ chai.use(chaiFiles);
 const sinon = require('sinon');
 
 const fs = require('fs');
-const mkdirp = require('mkdirp');
 const path = require('path');
 const Filter = require('..');
 const rimraf = require('rimraf').sync;
@@ -41,7 +40,7 @@ describe('Filter', function() {
   function write(relativePath, contents, _encoding) {
     let encoding = _encoding === undefined ? 'utf8' : _encoding;
 
-    mkdirp.sync(path.dirname(relativePath));
+    fs.mkdirSync(path.dirname(relativePath), { recursive: true });
     fs.writeFileSync(relativePath, contents, {
       encoding
     });
@@ -1613,4 +1612,3 @@ describe('throttling', function() {
   });
 
 });
-
