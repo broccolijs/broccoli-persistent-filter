@@ -387,7 +387,8 @@ class Dependencies {
    */
   static deserialize(dependencyData: Dependencies.SerializedDependencies, customFS: Dependencies.FSFacade, inputEncoding: string): Dependencies {
     let dependencies = new Dependencies(customFS, inputEncoding);
-    if (typeof dependencyData.fsTrees[0].fsRoot === 'string') {
+    let prevFsTree = dependencyData.fsTrees[0];
+    if (prevFsTree && typeof prevFsTree.fsRoot === 'string') {
       // Ideally the serialized cache would be invalidated when this code changes,
       // but just to be safe we handle the situation where old serialized data
       // that doesn't work with the current implementation might be present.

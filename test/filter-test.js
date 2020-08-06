@@ -1416,6 +1416,9 @@ describe('Filter', function() {
       it('calls processString if work is needed', async function() {
         input = await createTempDir();
         input.write({
+          'dep-tracking-0': {
+            'unrelated-file.js': `console.log('pay me no mind.')\n`
+          },
           'dep-tracking-1': {
             'has-inlines.js': `// << ./local.js\n// << ${input.path('external-deps/external.js')}\n`,
             'local.js': `console.log('local');\n`,
@@ -1436,6 +1439,25 @@ describe('Filter', function() {
           }
         });
 
+        // First we make sure the dependency tracking doesn't cause errors with
+        // no dependencies.
+        subject = new Inliner(path.join(input.path(), 'dep-tracking-0'), {
+          persist: true
+        });
+        rimraf(subject.processor.processor._cache.root);
+        rimraf(subject.processor.processor._syncCache.root);
+        output = createBuilder(subject);
+        await output.build();
+
+        // Next we make sure the dependency tracking doesn't cause errors with
+        // no dependencies in the previous build.
+        subject = new Inliner(path.join(input.path(), 'dep-tracking-0'), {
+          persist: true
+        });
+        output = createBuilder(subject);
+        await output.build();
+
+        // Now we test if there's dependencies.
         subject = new Inliner(path.join(input.path(), 'dep-tracking-1'), {
           persist: true
         });
