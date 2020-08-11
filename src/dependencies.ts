@@ -392,6 +392,7 @@ class Dependencies {
       // Ideally the serialized cache would be invalidated when this code changes,
       // but just to be safe we handle the situation where old serialized data
       // that doesn't work with the current implementation might be present.
+      dependencies.seal();
       return dependencies;
     }
     let files = Object.keys(dependencyData.dependencies);
