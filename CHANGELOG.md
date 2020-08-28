@@ -1,3 +1,15 @@
+## v3.1.1 (2020-08-28)
+
+#### :bug: Bug Fix
+* [#205](https://github.com/broccolijs/broccoli-persistent-filter/pull/205) Handle case where there's a cached dependencies object, but no dependencies. ([@chriseppstein](https://github.com/chriseppstein))
+* [#204](https://github.com/broccolijs/broccoli-persistent-filter/pull/204) Remove deprecated `mkdirp` dependency ([@jrjohnson](https://github.com/jrjohnson))
+
+#### :house: Internal
+* [#198](https://github.com/broccolijs/broccoli-persistent-filter/pull/198) Downgrade to @types/node v10 so that it matches this project's stated… ([@chriseppstein](https://github.com/chriseppstein))
+
+#### Committers: 2
+- Chris Eppstein ([@chriseppstein](https://github.com/chriseppstein))
+- Jonathan Johnson ([@jrjohnson](https://github.com/jrjohnson))
 
 # 3.1.0
 
