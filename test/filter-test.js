@@ -96,6 +96,16 @@ describe('Filter', function() {
       expect(filter.canProcessFile('twerp.rs')).to.equal(false);
     });
 
+    it('getDestFilePath handles non-existent (deleted/moved) files', async function () {
+      let inputPath = input.path();
+      let filter = new MyFilter(inputPath);
+
+      output = createBuilder(filter);
+      await output.build();
+
+      expect(filter.getDestFilePath('non/existent/file.js')).to.equal('non/existent/file.js');
+    });
+
     it('getDestFilePath returns null for directories when extensions is null', async function () {
       let inputPath = input.path();
       let filter = new MyFilter(inputPath, { extensions: null });
