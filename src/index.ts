@@ -416,7 +416,21 @@ abstract class Filter extends Plugin {
       return false;
     }
 
-    return (entry || this.input.lstatSync(relativePath)).isDirectory();
+    if (entry !== undefined) {
+      return entry.isDirectory();
+    } else {
+      try {
+        // wrap this in try/catch in case `relativePath` doesn't exist
+        const stat = this.input.lstatSync(relativePath);
+        return stat.isDirectory();
+      } catch (error) {
+        // if we get any other error, we really don't know what is going on so we need to rethrow
+        if (error.code === 'ENOENT') {
+          return false;
+        }
+        throw error;
+      }
+    }
   }
 
   getDestFilePath(relativePath: string, entry: Entry) {
