@@ -1,3 +1,11 @@
+## v3.1.2 (2020-10-22)
+
+#### :bug: Bug Fix
+* [#207](https://github.com/broccolijs/broccoli-persistent-filter/pull/207) getDestFilePath: handle non-existent (deleted/moved) files ([@jamescdavis](https://github.com/jamescdavis))
+
+#### Committers: 1
+- James C. Davis ([@jamescdavis](https://github.com/jamescdavis))
+
 ## v3.1.1 (2020-08-28)
 
 #### :bug: Bug Fix
