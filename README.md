@@ -149,12 +149,6 @@ likely the name of the plugin, its version and the actual versions of its depend
 const Filter = require('broccoli-persistent-filter');
 
 class Subclass extends Filter {
-  constructor(inputNode, search, replace, options = {}) {
-    super(inputNode, {
-      annotation: options.annotation
-    });
-  }
-
   cacheKey() {
     return md5(Filter.prototype.call(this) + inputOptionsChecksum + dependencyVersionChecksum);
   }
@@ -175,12 +169,6 @@ files that have dependencies that affect the output.
 const Filter = require('broccoli-persistent-filter');
 
 class Subclass extends Filter {
-  constructor(inputNode, search, replace, options = {}) {
-    super(inputNode, {
-      annotation: options.annotation
-    });
-  }
-
   cacheKeyProcessString(string, relativePath) {
     return superAwesomeDigest(string);
   }
