@@ -146,8 +146,12 @@ It is configured by subclassing and refining `cacheKey` method. A good key here,
 likely the name of the plugin, its version and the actual versions of its dependencies.
 
 ```js
-Subclass.prototype.cacheKey = function() {
- return md5(Filter.prototype.call(this) + inputOptionsChecksum + dependencyVersionChecksum);
+const Filter = require('broccoli-persistent-filter');
+
+class Subclass extends Filter {
+  cacheKey() {
+    return md5(Filter.prototype.call(this) + inputOptionsChecksum + dependencyVersionChecksum);
+  }
 }
 ```
 
@@ -162,8 +166,12 @@ for rebuilds. See the `dependencyInvalidation` option above to invalidate
 files that have dependencies that affect the output.
 
 ```js
-Subclass.prototype.cacheKeyProcessString = function(string, relativePath) {
-  return superAwesomeDigest(string);
+const Filter = require('broccoli-persistent-filter');
+
+class Subclass extends Filter {
+  cacheKeyProcessString(string, relativePath) {
+    return superAwesomeDigest(string);
+  }
 }
 ```
 
