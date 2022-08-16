@@ -17,7 +17,7 @@ class Processor implements Strategy {
   }
 
   setStrategy(stringProcessor: Strategy) {
-    this.processor = stringProcessor;
+    this.processor = { ...stringProcessor };
   }
 
   init(ctx: Context) {

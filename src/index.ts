@@ -151,6 +151,8 @@ abstract class Filter extends Plugin {
   concurrency: number;
   _outputLinks: Record<string, boolean>;
   _logger: debugGenerator.Logger;
+  _processorInitialized: boolean;
+
   static shouldPersist(env: typeof process.env, persist: boolean | undefined): boolean {
     let result;
 
@@ -200,8 +202,8 @@ abstract class Filter extends Plugin {
       this.async = (options.async === true);
     }
 
-    this.processor.init(this);
 
+    this._processorInitialized = false;
     this.dependencyInvalidation = options && options.dependencyInvalidation || false;
     this._canProcessCache = Object.create(null);
     this._destFilePathCache = Object.create(null);
@@ -212,6 +214,11 @@ abstract class Filter extends Plugin {
   }
 
   async build() {
+    if (!this._processorInitialized) {
+      this._processorInitialized = true;
+      this.processor.init(this);
+    }
+
     let srcDir = this.inputPaths[0];
     let destDir = this.outputPath;
 

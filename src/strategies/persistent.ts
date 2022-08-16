@@ -9,10 +9,6 @@ import assertNever from '../util/assertNever';
 
 const rimraf = Rimraf.sync;
 
-interface PersistentStrategyConstructor {
-  _persistentCacheKey?: string;
-}
-
 interface IPersistentStrategy extends Strategy {
   _cache?: AsyncDiskCache;
   _syncCache?: SyncDiskCache;
@@ -21,18 +17,14 @@ interface IPersistentStrategy extends Strategy {
 
 const PersistentStrategy: IPersistentStrategy = {
   init(ctx) {
-    // not happy about having to cast through `any` here.
-    let constructor: PersistentStrategyConstructor = <any>ctx.constructor;
-    if (!constructor._persistentCacheKey) {
-      constructor._persistentCacheKey = this.cacheKey(ctx);
-    }
+    const cacheKey = this.cacheKey(ctx);
 
-    this._cache = new AsyncDiskCache(constructor._persistentCacheKey, {
+    this._cache = new AsyncDiskCache(cacheKey, {
       location: process.env['BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT'],
       compression: 'deflate'
     });
 
-    this._syncCache = new SyncDiskCache(constructor._persistentCacheKey, {
+    this._syncCache = new SyncDiskCache(cacheKey, {
       location: process.env['BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT']
     });
 
