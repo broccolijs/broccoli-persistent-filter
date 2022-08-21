@@ -6,6 +6,7 @@ var path = require('path');
 var fs = require('fs');
 var Filter = require('../../');
 var minimatch = require('minimatch');
+var resolveRelative = require('../../lib/util/resolveRelative').default;
 
 class Inliner extends Filter {
   constructor(inputTree, _options) {
@@ -36,7 +37,7 @@ class Inliner extends Filter {
           deps.push(fileRef);
           lines[i] = fs.readFileSync(fileRef, "utf8").trim();
         } else {
-          let filePath = path.normalize(path.resolve("/", path.dirname(relativePath), fileRef)).substring(1);
+          let filePath = resolveRelative(path.dirname(relativePath), fileRef);
           deps.push(filePath);
           lines[i] = this.input.readFileSync(filePath, "utf8").trim();
         }
