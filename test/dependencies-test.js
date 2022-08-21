@@ -44,7 +44,7 @@ function touch(filePath, contents) {
   }
 }
 
-describe('relativePath utility', function() {
+describe('resolveRelative utility', function() {
   it('resolves a relative path', function() {
     assert.equal(resolveRelative('.', 'foo.txt'), 'foo.txt');
   });
