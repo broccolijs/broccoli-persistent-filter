@@ -197,7 +197,9 @@ abstract class Filter extends Plugin {
       if (options.inputEncoding != null)   this.inputEncoding = options.inputEncoding;
       if (options.outputEncoding != null)  this.outputEncoding = options.outputEncoding;
       if (Filter.shouldPersist(process.env, options.persist)) {
-        this.processor.setStrategy(require('./strategies/persistent'));
+        const PersistentStrategy = require('./strategies/persistent');
+
+        this.processor.setStrategy(new PersistentStrategy());
       }
       this.async = (options.async === true);
     }

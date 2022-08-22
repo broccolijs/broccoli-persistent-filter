@@ -15,8 +15,11 @@ interface IPersistentStrategy extends Strategy {
   cacheKey(ctx: Context): string;
 }
 
-const PersistentStrategy: IPersistentStrategy = {
-  init(ctx) {
+class PersistentStrategy implements IPersistentStrategy {
+  _cache?: AsyncDiskCache;
+  _syncCache?: SyncDiskCache;
+
+  init(ctx: Context) {
     const cacheKey = this.cacheKey(ctx);
 
     this._cache = new AsyncDiskCache(cacheKey, {
@@ -34,11 +37,11 @@ const PersistentStrategy: IPersistentStrategy = {
       rimraf(this._cache.root);
       rimraf(this._syncCache.root);
     }
-  },
+  }
 
-  cacheKey(ctx) {
+  cacheKey(ctx: Context) {
     return ctx.cacheKey!();
-  },
+  }
 
   async processString(ctx: Context, contents: string, relativePath: string, forceInvalidation: boolean, instrumentation: InstrumentationSchema): Promise<string> {
     let key = ctx.cacheKeyProcessString!(contents, relativePath);
@@ -69,7 +72,7 @@ const PersistentStrategy: IPersistentStrategy = {
       assertNever(result, 'You must return an object from `Filter.prototype.postProcess`.');
     }
     return result.output;
-  },
+  }
 
   /**
    * By default initial dependencies are empty.
@@ -88,13 +91,13 @@ const PersistentStrategy: IPersistentStrategy = {
       dependencies.seal().captureDependencyState();
     }
    return dependencies;
-  },
+  }
 
   /**
    * Seals the dependencies and captures the dependency state.
    * @param dependencies {Dependencies} The dependencies to seal.
    */
-  sealDependencies(dependencies) {
+  sealDependencies(dependencies: Dependencies) {
     dependencies.seal().captureDependencyState();
     let data = dependencies.serialize();
     this._syncCache!.set('__dependencies__', JSON.stringify(data));
