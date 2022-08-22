@@ -882,6 +882,10 @@ describe('Filter', function() {
       constructor (inputTree, options) {
         super(inputTree, options);
       }
+
+      processString() {
+        return '';
+      }
     }
 
     F.prototype.baseDir = function() {
@@ -918,31 +922,46 @@ describe('Filter', function() {
       await input.dispose();
     });
 
-    it('initializes cache', function() {
+    it('does not initialize the cache until `build`', function() {
       this.timeout(15*1000); // takes >5s when run with node 0.12
       let f = new F(input.path(), {
         persist: true
       });
 
       // TODO: we should just deal in observable differences, not reaching into private state
-      expect(f.processor.processor._cache).to.be.ok;
-
+      expect(f.processor.processor._cache).to.be.undefined;
     });
 
-    it('initializes cache using ENV variable if present', function() {
-      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
-                                                                    'foo-bar-baz-testing-123');
-
-      let f = new F(input.path(), {
+    it('initializes the cache when `build` is called', async function() {
+      this.timeout(15*1000); // takes >5s when run with node 0.12
+      let subject = new F(input.path(), {
         persist: true
       });
 
+      const output = createBuilder(subject);
+      await output.build();
+
       // TODO: we should just deal in observable differences, not reaching into private state
-      expect(f.processor.processor._cache.tmpdir).
+      expect(subject.processor.processor._cache).to.be.ok;
+    });
+
+    it('initializes cache using ENV variable if present', async function() {
+      process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT = path.join(os.tmpdir(),
+                                                                    'foo-bar-baz-testing-123');
+
+      let subject = new F(input.path(), {
+        persist: true
+      });
+
+      const output = createBuilder(subject);
+      await output.build();
+
+      // TODO: we should just deal in observable differences, not reaching into private state
+      expect(subject.processor.processor._cache.tmpdir).
         to.be.equal(process.env.BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT);
     });
 
-    it('throws an UnimplementedException if the abstract `baseDir` implementation is used', function() {
+    it('throws an UnimplementedException if the abstract `baseDir` implementation is used', async function() {
 
       class F extends Filter{
         constructor (inputTree, options) {
@@ -950,9 +969,14 @@ describe('Filter', function() {
         }
       }
 
-      expect(function() {
-        new F(input.path(), { persist: true });
-      }).to.throw(/Filter must implement prototype.baseDir/);
+      const subject = new F(input.path(), { persist: true });
+      const output = createBuilder(subject);
+
+      try {
+        await output.build();
+      } catch (e) {
+        expect(e.message).to.include('Filter must implement prototype.baseDir');
+      }
     });
 
     it('`cacheKeyProcessString` return correct first level file cache', function() {
@@ -1454,8 +1478,6 @@ describe('Filter', function() {
         subject = new Inliner(path.join(input.path(), 'dep-tracking-0'), {
           persist: true
         });
-        rimraf(subject.processor.processor._cache.root);
-        rimraf(subject.processor.processor._syncCache.root);
         output = createBuilder(subject);
         await output.build();
 
@@ -1467,16 +1489,18 @@ describe('Filter', function() {
         output = createBuilder(subject);
         await output.build();
 
+        rimraf(subject.processor.processor._cache.root);
+        rimraf(subject.processor.processor._syncCache.root);
+
         // Now we test if there's dependencies.
         subject = new Inliner(path.join(input.path(), 'dep-tracking-1'), {
           persist: true
         });
-        rimraf(subject.processor.processor._cache.root);
-        rimraf(subject.processor.processor._syncCache.root);
         sinon.spy(subject, 'processString');
         output = createBuilder(subject);
 
         let results = await output.build();
+
         // first time, build everything
         expect(output.readText('has-inlines.js')).to.equal(
           `console.log('local');\nconsole.log('external');\n`
@@ -1507,6 +1531,7 @@ describe('Filter', function() {
         output = createBuilder(subject);
 
         results = await output.build();
+
         // rebuild 1 file due to invalidations, one due to changes.
         expect(subject.processString.callCount).to.equal(2);
 

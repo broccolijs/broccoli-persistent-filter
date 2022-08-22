@@ -1,4 +1,4 @@
-import defaultProcessor = require('./strategies/default');
+import DefaultProcessor = require('./strategies/default');
 import { Strategy, Context, InstrumentationSchema} from './strategies/strategy';
 import Dependencies = require('./dependencies');
 
@@ -12,12 +12,12 @@ class Processor implements Strategy {
   persistent: boolean;
   constructor(options: Processor.Options) {
     options = options || {};
-    this.processor = defaultProcessor;
+    this.processor = new DefaultProcessor();
     this.persistent = !!options.persist;
   }
 
-  setStrategy(stringProcessor: Strategy) {
-    this.processor = stringProcessor;
+  setStrategy(strategy: Strategy) {
+    this.processor = strategy;
   }
 
   init(ctx: Context) {

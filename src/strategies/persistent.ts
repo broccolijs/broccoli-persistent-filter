@@ -9,30 +9,25 @@ import assertNever from '../util/assertNever';
 
 const rimraf = Rimraf.sync;
 
-interface PersistentStrategyConstructor {
-  _persistentCacheKey?: string;
-}
-
 interface IPersistentStrategy extends Strategy {
   _cache?: AsyncDiskCache;
   _syncCache?: SyncDiskCache;
   cacheKey(ctx: Context): string;
 }
 
-const PersistentStrategy: IPersistentStrategy = {
-  init(ctx) {
-    // not happy about having to cast through `any` here.
-    let constructor: PersistentStrategyConstructor = <any>ctx.constructor;
-    if (!constructor._persistentCacheKey) {
-      constructor._persistentCacheKey = this.cacheKey(ctx);
-    }
+class PersistentStrategy implements IPersistentStrategy {
+  _cache?: AsyncDiskCache;
+  _syncCache?: SyncDiskCache;
 
-    this._cache = new AsyncDiskCache(constructor._persistentCacheKey, {
+  init(ctx: Context) {
+    const cacheKey = this.cacheKey(ctx);
+
+    this._cache = new AsyncDiskCache(cacheKey, {
       location: process.env['BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT'],
       compression: 'deflate'
     });
 
-    this._syncCache = new SyncDiskCache(constructor._persistentCacheKey, {
+    this._syncCache = new SyncDiskCache(cacheKey, {
       location: process.env['BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT']
     });
 
@@ -42,11 +37,11 @@ const PersistentStrategy: IPersistentStrategy = {
       rimraf(this._cache.root);
       rimraf(this._syncCache.root);
     }
-  },
+  }
 
-  cacheKey(ctx) {
+  cacheKey(ctx: Context) {
     return ctx.cacheKey!();
-  },
+  }
 
   async processString(ctx: Context, contents: string, relativePath: string, forceInvalidation: boolean, instrumentation: InstrumentationSchema): Promise<string> {
     let key = ctx.cacheKeyProcessString!(contents, relativePath);
@@ -77,7 +72,7 @@ const PersistentStrategy: IPersistentStrategy = {
       assertNever(result, 'You must return an object from `Filter.prototype.postProcess`.');
     }
     return result.output;
-  },
+  }
 
   /**
    * By default initial dependencies are empty.
@@ -96,13 +91,13 @@ const PersistentStrategy: IPersistentStrategy = {
       dependencies.seal().captureDependencyState();
     }
    return dependencies;
-  },
+  }
 
   /**
    * Seals the dependencies and captures the dependency state.
    * @param dependencies {Dependencies} The dependencies to seal.
    */
-  sealDependencies(dependencies) {
+  sealDependencies(dependencies: Dependencies) {
     dependencies.seal().captureDependencyState();
     let data = dependencies.serialize();
     this._syncCache!.set('__dependencies__', JSON.stringify(data));
