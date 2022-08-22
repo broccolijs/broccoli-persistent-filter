@@ -16,7 +16,7 @@ class Filter {
    * Enforces that it is invoked on an instance of a class which prototypically
    * inherits from Filter, and which is not itself Filter.
    */
-  constructor(inputNode: BroccoliNode, options: FilterOptions): Filter;
+  constructor(inputNodes: BroccoliNode | BroccoliNode[], options: FilterOptions): Filter;
 
   /**
    * method `processString`: must be implemented on subclasses of
@@ -122,6 +122,11 @@ In `Brocfile.js`, use your new `Awk` plugin like so:
 var node = new Awk('docs', 'ES6', 'ECMAScript 2015');
 
 module.exports = node;
+```
+
+Now, persistent filter supports array of input nodes.
+```
+module.exports = new Awk(['fixture','fixture_2'], 'test', 'real');
 ```
 
 ## Persistent Cache
