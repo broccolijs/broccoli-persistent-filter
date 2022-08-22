@@ -1,3 +1,19 @@
+## v3.1.3 (2022-08-22)
+
+#### :bug: Bug Fix
+* [#218](https://github.com/broccolijs/broccoli-persistent-filter/pull/218) Initialize processor in `build`, prevent reusing same strategy ([@brendenpalmer](https://github.com/brendenpalmer))
+
+#### :memo: Documentation
+* [#209](https://github.com/broccolijs/broccoli-persistent-filter/pull/209) [docs] removes prototype examples and uses classes instead ([@gabrielcsapo](https://github.com/gabrielcsapo))
+
+#### :house: Internal
+* [#219](https://github.com/broccolijs/broccoli-persistent-filter/pull/219) Migrate to GitHub Actions ([@rwjblue](https://github.com/rwjblue))
+
+#### Committers: 3
+- Brenden Palmer ([@brendenpalmer](https://github.com/brendenpalmer))
+- Gabriel Csapo ([@gabrielcsapo](https://github.com/gabrielcsapo))
+- Robert Jackson ([@rwjblue](https://github.com/rwjblue))
+
 ## v3.1.2 (2020-10-22)
 
 #### :bug: Bug Fix
